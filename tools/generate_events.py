@@ -34,8 +34,11 @@ import (
 type {{eventName}} struct {
     eventName string
 {%- for p, t in event.properties.items() %}
-    {{event.pascal_case(p)}} {{event.go_type(t)}}
+    {%- if event.pascal_case(p) != "Info" %}
+        {{event.pascal_case(p)}} {{event.go_type(t)}}
+    {%- endif %}
 {%- endfor %}
+    Info string
 }
 
 var {{eventName}}Name string = "{{event['name']}}"
@@ -109,6 +112,9 @@ func (e *{{eventName}}) GetHostId() strfmt.UUID {
 {%- endif %}
 func (e *{{eventName}}) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
+}
+func (e *{{eventName}}) GetInfo() string {
+    return e.Info
 }
 {%- endif %}
 

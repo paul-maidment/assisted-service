@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
-
 	eventsapi "github.com/openshift/assisted-service/internal/events/api"
 	"github.com/thoas/go-funk"
 )
@@ -111,6 +110,19 @@ func WithMessageContainsMatcher(expected string) eventPartMatcher {
 			return false
 		}
 		return funk.Contains(e.FormatMessage(), expected)
+	}
+}
+
+func WithInfoMatcher(expected string) eventPartMatcher {
+	return func(event interface{}) bool {
+		e, ok := event.(eventsapi.HostEvent)
+		if !ok {
+			return false
+		}
+		if e.GetInfo()== expected {
+			return true
+		}
+		return false
 	}
 }
 

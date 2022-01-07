@@ -46,13 +46,17 @@ var _ = Describe("update_host_state", func() {
 		lastUpdatedTime = host.StatusUpdatedAt
 	})
 
-	Describe("UpdateHostStatus", func() {
-		It("change_status", func() {
-			mockEvents.EXPECT().SendHostEvent(gomock.Any(), eventstest.NewEventMatcher(
-				eventstest.WithNameMatcher(eventgen.HostStatusUpdatedEventName),
-				eventstest.WithHostIdMatcher(host.ID.String()),
-				eventstest.WithInfraEnvIdMatcher(host.InfraEnvID.String()),
-				eventstest.WithClusterIdMatcher(host.ClusterID.String())))
+	FDescribe("UpdateHostStatus", func() {
+		FIt("change_status", func() {
+			mockEvents.EXPECT().SendHostEvent(
+				gomock.Any(),
+				eventstest.NewEventMatcher(
+					eventstest.WithNameMatcher(eventgen.HostStatusUpdatedEventName),
+					eventstest.WithHostIdMatcher(host.ID.String()),
+					eventstest.WithInfraEnvIdMatcher(host.InfraEnvID.String()),
+					eventstest.WithClusterIdMatcher(host.ClusterID.String()),
+					eventstest.WithInfoMatcher(fmt.Sprintf("(%s)", newStatusInfo))))
+
 			returnedHost, err = UpdateHostStatus(ctx, common.GetTestLog(), db, mockEvents, host.InfraEnvID, *host.ID, common.TestDefaultConfig.Status,
 				newStatus, newStatusInfo)
 			Expect(err).ShouldNot(HaveOccurred())

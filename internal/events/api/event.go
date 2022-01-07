@@ -58,6 +58,7 @@ type HostEvent interface {
 	GetClusterId() *strfmt.UUID
 	GetHostId() strfmt.UUID
 	GetInfraEnvId() strfmt.UUID
+	GetInfo() string
 }
 
 type InfraEnvEvent interface {

@@ -16,7 +16,8 @@ import (
 //
 type CancelInstallStartFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var CancelInstallStartFailedEventName string = "cancel_install_start_failed"
@@ -79,7 +80,8 @@ func (e *CancelInstallStartFailedEvent) FormatMessage() string {
 //
 type CancelInstallCommitFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var CancelInstallCommitFailedEventName string = "cancel_install_commit_failed"
@@ -142,9 +144,10 @@ func (e *CancelInstallCommitFailedEvent) FormatMessage() string {
 //
 type HostRegistrationSettingPropertiesFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+    Info string
 }
 
 var HostRegistrationSettingPropertiesFailedEventName string = "host_registration_setting_properties_failed"
@@ -207,6 +210,9 @@ func (e *HostRegistrationSettingPropertiesFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostRegistrationSettingPropertiesFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostRegistrationSettingPropertiesFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostRegistrationSettingPropertiesFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -227,9 +233,10 @@ func (e *HostRegistrationSettingPropertiesFailedEvent) FormatMessage() string {
 //
 type ClusterRegistrationFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    Error string
-    ClusterKind string
+        ClusterId strfmt.UUID
+        Error string
+        ClusterKind string
+    Info string
 }
 
 var ClusterRegistrationFailedEventName string = "cluster_registration_failed"
@@ -306,8 +313,9 @@ func (e *ClusterRegistrationFailedEvent) FormatMessage() string {
 //
 type ClusterRegistrationSucceededEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    ClusterKind string
+        ClusterId strfmt.UUID
+        ClusterKind string
+    Info string
 }
 
 var ClusterRegistrationSucceededEventName string = "cluster_registration_succeeded"
@@ -377,8 +385,9 @@ func (e *ClusterRegistrationSucceededEvent) FormatMessage() string {
 //
 type ClusterDeregisterFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    Error string
+        ClusterId strfmt.UUID
+        Error string
+    Info string
 }
 
 var ClusterDeregisterFailedEventName string = "cluster_deregister_failed"
@@ -448,7 +457,8 @@ func (e *ClusterDeregisterFailedEvent) FormatMessage() string {
 //
 type ClusterDeregisteredEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ClusterDeregisteredEventName string = "cluster_deregistered"
@@ -511,9 +521,10 @@ func (e *ClusterDeregisteredEvent) FormatMessage() string {
 //
 type ClusterValidationFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    ValidationId string
-    ValidationMsg string
+        ClusterId strfmt.UUID
+        ValidationId string
+        ValidationMsg string
+    Info string
 }
 
 var ClusterValidationFailedEventName string = "cluster_validation_failed"
@@ -590,9 +601,10 @@ func (e *ClusterValidationFailedEvent) FormatMessage() string {
 //
 type ClusterValidationFixedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    ValidationId string
-    ValidationMsg string
+        ClusterId strfmt.UUID
+        ValidationId string
+        ValidationMsg string
+    Info string
 }
 
 var ClusterValidationFixedEventName string = "cluster_validation_fixed"
@@ -669,7 +681,8 @@ func (e *ClusterValidationFixedEvent) FormatMessage() string {
 //
 type AfterInactivityClusterDeregisteredEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var AfterInactivityClusterDeregisteredEventName string = "after_inactivity_cluster_deregistered"
@@ -732,7 +745,8 @@ func (e *AfterInactivityClusterDeregisteredEvent) FormatMessage() string {
 //
 type ClusterInstallationCompletedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ClusterInstallationCompletedEventName string = "cluster_installation_completed"
@@ -795,8 +809,9 @@ func (e *ClusterInstallationCompletedEvent) FormatMessage() string {
 //
 type ClusterInstallationFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    FailureReason string
+        ClusterId strfmt.UUID
+        FailureReason string
+    Info string
 }
 
 var ClusterInstallationFailedEventName string = "cluster_installation_failed"
@@ -866,7 +881,8 @@ func (e *ClusterInstallationFailedEvent) FormatMessage() string {
 //
 type ClusterInstallationCanceledEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ClusterInstallationCanceledEventName string = "cluster_installation_canceled"
@@ -929,8 +945,9 @@ func (e *ClusterInstallationCanceledEvent) FormatMessage() string {
 //
 type CancelInstallationFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    Error string
+        ClusterId strfmt.UUID
+        Error string
+    Info string
 }
 
 var CancelInstallationFailedEventName string = "cancel_installation_failed"
@@ -1000,9 +1017,10 @@ func (e *CancelInstallationFailedEvent) FormatMessage() string {
 //
 type ClusterStatusUpdatedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    ClusterStatus string
-    StatusInfo string
+        ClusterId strfmt.UUID
+        ClusterStatus string
+        StatusInfo string
+    Info string
 }
 
 var ClusterStatusUpdatedEventName string = "cluster_status_updated"
@@ -1079,7 +1097,8 @@ func (e *ClusterStatusUpdatedEvent) FormatMessage() string {
 //
 type ClusterInstallationResetEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ClusterInstallationResetEventName string = "cluster_installation_reset"
@@ -1142,8 +1161,9 @@ func (e *ClusterInstallationResetEvent) FormatMessage() string {
 //
 type ResetInstallationFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    Error string
+        ClusterId strfmt.UUID
+        Error string
+    Info string
 }
 
 var ResetInstallationFailedEventName string = "reset_installation_failed"
@@ -1213,9 +1233,10 @@ func (e *ResetInstallationFailedEvent) FormatMessage() string {
 //
 type ApiIngressVipUpdatedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    ApiVip string
-    IngressVip string
+        ClusterId strfmt.UUID
+        ApiVip string
+        IngressVip string
+    Info string
 }
 
 var ApiIngressVipUpdatedEventName string = "api_ingress_vip_updated"
@@ -1292,8 +1313,9 @@ func (e *ApiIngressVipUpdatedEvent) FormatMessage() string {
 //
 type ApiIngressVipTimedOutEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    TimeoutInterval int
+        ClusterId strfmt.UUID
+        TimeoutInterval int
+    Info string
 }
 
 var ApiIngressVipTimedOutEventName string = "api_ingress_vip_timed_out"
@@ -1363,8 +1385,9 @@ func (e *ApiIngressVipTimedOutEvent) FormatMessage() string {
 //
 type PrepareInstallationFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    Error string
+        ClusterId strfmt.UUID
+        Error string
+    Info string
 }
 
 var PrepareInstallationFailedEventName string = "prepare_installation_failed"
@@ -1434,7 +1457,8 @@ func (e *PrepareInstallationFailedEvent) FormatMessage() string {
 //
 type ClusterPrepareInstallationStartedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ClusterPrepareInstallationStartedEventName string = "cluster_prepare_installation_started"
@@ -1497,7 +1521,8 @@ func (e *ClusterPrepareInstallationStartedEvent) FormatMessage() string {
 //
 type InstallationPreparingTimedOutEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var InstallationPreparingTimedOutEventName string = "installation_preparing_timed_out"
@@ -1560,8 +1585,9 @@ func (e *InstallationPreparingTimedOutEvent) FormatMessage() string {
 //
 type ClusterDegradedOLMOperatorsFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    FailedOperators string
+        ClusterId strfmt.UUID
+        FailedOperators string
+    Info string
 }
 
 var ClusterDegradedOLMOperatorsFailedEventName string = "cluster_degraded_OLM_operators_failed"
@@ -1631,7 +1657,8 @@ func (e *ClusterDegradedOLMOperatorsFailedEvent) FormatMessage() string {
 //
 type ExpiredImageDeletedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ExpiredImageDeletedEventName string = "expired_image_deleted"
@@ -1694,10 +1721,11 @@ func (e *ExpiredImageDeletedEvent) FormatMessage() string {
 //
 type ClusterOperatorStatusEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    OperatorName string
-    Status string
-    StatusInfo string
+        ClusterId strfmt.UUID
+        OperatorName string
+        Status string
+        StatusInfo string
+    Info string
 }
 
 var ClusterOperatorStatusEventName string = "cluster_operator_status"
@@ -1781,7 +1809,8 @@ func (e *ClusterOperatorStatusEvent) FormatMessage() string {
 //
 type DownloadImageFetchFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var DownloadImageFetchFailedEventName string = "download_image_fetch_failed"
@@ -1829,6 +1858,9 @@ func (e *DownloadImageFetchFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *DownloadImageFetchFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *DownloadImageFetchFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *DownloadImageFetchFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -1847,10 +1879,11 @@ func (e *DownloadImageFetchFailedEvent) FormatMessage() string {
 //
 type HostDeregisteredEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostDeregisteredEventName string = "host_deregistered"
@@ -1919,6 +1952,9 @@ func (e *HostDeregisteredEvent) GetHostId() strfmt.UUID {
 func (e *HostDeregisteredEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostDeregisteredEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostDeregisteredEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -1940,10 +1976,11 @@ func (e *HostDeregisteredEvent) FormatMessage() string {
 //
 type HostInstallerArgsAppliedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostInstallerArgsAppliedEventName string = "host_installer_args_applied"
@@ -2012,6 +2049,9 @@ func (e *HostInstallerArgsAppliedEvent) GetHostId() strfmt.UUID {
 func (e *HostInstallerArgsAppliedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostInstallerArgsAppliedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostInstallerArgsAppliedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2033,10 +2073,11 @@ func (e *HostInstallerArgsAppliedEvent) FormatMessage() string {
 //
 type HostBootstrapSetEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostBootstrapSetEventName string = "host_bootstrap_set"
@@ -2105,6 +2146,9 @@ func (e *HostBootstrapSetEvent) GetHostId() strfmt.UUID {
 func (e *HostBootstrapSetEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostBootstrapSetEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostBootstrapSetEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2126,13 +2170,13 @@ func (e *HostBootstrapSetEvent) FormatMessage() string {
 //
 type HostStatusUpdatedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    Severity string
-    HostName string
-    SrcStatus string
-    NewStatus string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        Severity string
+        HostName string
+        SrcStatus string
+        NewStatus string
     Info string
 }
 
@@ -2226,6 +2270,9 @@ func (e *HostStatusUpdatedEvent) GetHostId() strfmt.UUID {
 func (e *HostStatusUpdatedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostStatusUpdatedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostStatusUpdatedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2251,10 +2298,11 @@ func (e *HostStatusUpdatedEvent) FormatMessage() string {
 //
 type HostRoleUpdatedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    HostName string
-    SuggestedRole string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        HostName string
+        SuggestedRole string
+    Info string
 }
 
 var HostRoleUpdatedEventName string = "host_role_updated"
@@ -2323,6 +2371,9 @@ func (e *HostRoleUpdatedEvent) GetHostId() strfmt.UUID {
 func (e *HostRoleUpdatedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostRoleUpdatedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostRoleUpdatedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2344,12 +2395,12 @@ func (e *HostRoleUpdatedEvent) FormatMessage() string {
 //
 type ImageStatusUpdatedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    ImageStatus string
-    Result string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        ImageStatus string
+        Result string
     Info string
 }
 
@@ -2437,6 +2488,9 @@ func (e *ImageStatusUpdatedEvent) GetHostId() strfmt.UUID {
 func (e *ImageStatusUpdatedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *ImageStatusUpdatedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *ImageStatusUpdatedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2461,10 +2515,11 @@ func (e *ImageStatusUpdatedEvent) FormatMessage() string {
 //
 type HostInstallationCancelledEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostInstallationCancelledEventName string = "host_installation_cancelled"
@@ -2533,6 +2588,9 @@ func (e *HostInstallationCancelledEvent) GetHostId() strfmt.UUID {
 func (e *HostInstallationCancelledEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostInstallationCancelledEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostInstallationCancelledEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2554,10 +2612,11 @@ func (e *HostInstallationCancelledEvent) FormatMessage() string {
 //
 type HostInstallationStartedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostInstallationStartedEventName string = "host_installation_started"
@@ -2626,6 +2685,9 @@ func (e *HostInstallationStartedEvent) GetHostId() strfmt.UUID {
 func (e *HostInstallationStartedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostInstallationStartedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostInstallationStartedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2647,11 +2709,12 @@ func (e *HostInstallationStartedEvent) FormatMessage() string {
 //
 type HostCancelInstallationFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    Error string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        Error string
+    Info string
 }
 
 var HostCancelInstallationFailedEventName string = "host_cancel_installation_failed"
@@ -2726,6 +2789,9 @@ func (e *HostCancelInstallationFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostCancelInstallationFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostCancelInstallationFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostCancelInstallationFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2748,10 +2814,11 @@ func (e *HostCancelInstallationFailedEvent) FormatMessage() string {
 //
 type HostInstallationResetEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostInstallationResetEventName string = "host_installation_reset"
@@ -2820,6 +2887,9 @@ func (e *HostInstallationResetEvent) GetHostId() strfmt.UUID {
 func (e *HostInstallationResetEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostInstallationResetEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostInstallationResetEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2841,11 +2911,12 @@ func (e *HostInstallationResetEvent) FormatMessage() string {
 //
 type HostInstallationResetFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    Error string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        Error string
+    Info string
 }
 
 var HostInstallationResetFailedEventName string = "host_installation_reset_failed"
@@ -2920,6 +2991,9 @@ func (e *HostInstallationResetFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostInstallationResetFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostInstallationResetFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostInstallationResetFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -2942,10 +3016,11 @@ func (e *HostInstallationResetFailedEvent) FormatMessage() string {
 //
 type UserRequiredCompleteInstallationResetEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var UserRequiredCompleteInstallationResetEventName string = "user_required_complete_installation_reset"
@@ -3014,6 +3089,9 @@ func (e *UserRequiredCompleteInstallationResetEvent) GetHostId() strfmt.UUID {
 func (e *UserRequiredCompleteInstallationResetEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *UserRequiredCompleteInstallationResetEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *UserRequiredCompleteInstallationResetEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3035,11 +3113,12 @@ func (e *UserRequiredCompleteInstallationResetEvent) FormatMessage() string {
 //
 type HostSetStatusFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    Error string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        Error string
+    Info string
 }
 
 var HostSetStatusFailedEventName string = "host_set_status_failed"
@@ -3114,6 +3193,9 @@ func (e *HostSetStatusFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostSetStatusFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostSetStatusFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostSetStatusFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3136,11 +3218,12 @@ func (e *HostSetStatusFailedEvent) FormatMessage() string {
 //
 type HostValidationFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    ValidationId string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        ValidationId string
+    Info string
 }
 
 var HostValidationFailedEventName string = "host_validation_failed"
@@ -3215,6 +3298,9 @@ func (e *HostValidationFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostValidationFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostValidationFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostValidationFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3237,11 +3323,12 @@ func (e *HostValidationFailedEvent) FormatMessage() string {
 //
 type HostValidationFixedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    ValidationId string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        ValidationId string
+    Info string
 }
 
 var HostValidationFixedEventName string = "host_validation_fixed"
@@ -3316,6 +3403,9 @@ func (e *HostValidationFixedEvent) GetHostId() strfmt.UUID {
 func (e *HostValidationFixedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostValidationFixedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostValidationFixedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3338,12 +3428,13 @@ func (e *HostValidationFixedEvent) FormatMessage() string {
 //
 type QuickDiskFormatPerformedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    DiskName string
-    DiskId string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        DiskName string
+        DiskId string
+    Info string
 }
 
 var QuickDiskFormatPerformedEventName string = "quick_disk_format_performed"
@@ -3424,6 +3515,9 @@ func (e *QuickDiskFormatPerformedEvent) GetHostId() strfmt.UUID {
 func (e *QuickDiskFormatPerformedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *QuickDiskFormatPerformedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *QuickDiskFormatPerformedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3447,8 +3541,9 @@ func (e *QuickDiskFormatPerformedEvent) FormatMessage() string {
 //
 type InfraEnvRegistrationFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
-    Error string
+        InfraEnvId strfmt.UUID
+        Error string
+    Info string
 }
 
 var InfraEnvRegistrationFailedEventName string = "infra_env_registration_failed"
@@ -3502,6 +3597,9 @@ func (e *InfraEnvRegistrationFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *InfraEnvRegistrationFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *InfraEnvRegistrationFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *InfraEnvRegistrationFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3521,7 +3619,8 @@ func (e *InfraEnvRegistrationFailedEvent) FormatMessage() string {
 //
 type InfraEnvRegisteredEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var InfraEnvRegisteredEventName string = "infra_env_registered"
@@ -3569,6 +3668,9 @@ func (e *InfraEnvRegisteredEvent) GetClusterId() *strfmt.UUID {
 func (e *InfraEnvRegisteredEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *InfraEnvRegisteredEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *InfraEnvRegisteredEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3587,8 +3689,9 @@ func (e *InfraEnvRegisteredEvent) FormatMessage() string {
 //
 type InfraEnvDeregisterFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
-    Error string
+        InfraEnvId strfmt.UUID
+        Error string
+    Info string
 }
 
 var InfraEnvDeregisterFailedEventName string = "infra_env_deregister_failed"
@@ -3642,6 +3745,9 @@ func (e *InfraEnvDeregisterFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *InfraEnvDeregisterFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *InfraEnvDeregisterFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *InfraEnvDeregisterFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3661,7 +3767,8 @@ func (e *InfraEnvDeregisterFailedEvent) FormatMessage() string {
 //
 type InfraEnvDeregisteredEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var InfraEnvDeregisteredEventName string = "infra_env_deregistered"
@@ -3709,6 +3816,9 @@ func (e *InfraEnvDeregisteredEvent) GetClusterId() *strfmt.UUID {
 func (e *InfraEnvDeregisteredEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *InfraEnvDeregisteredEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *InfraEnvDeregisteredEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3727,7 +3837,8 @@ func (e *InfraEnvDeregisteredEvent) FormatMessage() string {
 //
 type DiscoveryIgnitionConfigAppliedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var DiscoveryIgnitionConfigAppliedEventName string = "discovery_ignition_config_applied"
@@ -3790,7 +3901,8 @@ func (e *DiscoveryIgnitionConfigAppliedEvent) FormatMessage() string {
 //
 type IgnitionUpdatedThereforeImageDeletedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var IgnitionUpdatedThereforeImageDeletedEventName string = "ignition_updated_therefore_image_deleted"
@@ -3853,7 +3965,8 @@ func (e *IgnitionUpdatedThereforeImageDeletedEvent) FormatMessage() string {
 //
 type DownloadImageFindFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var DownloadImageFindFailedEventName string = "download_image_find_failed"
@@ -3901,6 +4014,9 @@ func (e *DownloadImageFindFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *DownloadImageFindFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *DownloadImageFindFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *DownloadImageFindFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3919,8 +4035,9 @@ func (e *DownloadImageFindFailedEvent) FormatMessage() string {
 //
 type DownloadImageStartedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
-    ImageType string
+        InfraEnvId strfmt.UUID
+        ImageType string
+    Info string
 }
 
 var DownloadImageStartedEventName string = "download_image_started"
@@ -3974,6 +4091,9 @@ func (e *DownloadImageStartedEvent) GetClusterId() *strfmt.UUID {
 func (e *DownloadImageStartedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *DownloadImageStartedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *DownloadImageStartedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -3993,7 +4113,8 @@ func (e *DownloadImageStartedEvent) FormatMessage() string {
 //
 type GenerateImageStartFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var GenerateImageStartFailedEventName string = "generate_image_start_failed"
@@ -4056,7 +4177,8 @@ func (e *GenerateImageStartFailedEvent) FormatMessage() string {
 //
 type GenerateImageContactStorageBackendFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var GenerateImageContactStorageBackendFailedEventName string = "generate_image_contact_storage_backend_failed"
@@ -4119,7 +4241,8 @@ func (e *GenerateImageContactStorageBackendFailedEvent) FormatMessage() string {
 //
 type GenerateImageUpdateMetadataFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var GenerateImageUpdateMetadataFailedEventName string = "generate_image_update_metadata_failed"
@@ -4182,7 +4305,8 @@ func (e *GenerateImageUpdateMetadataFailedEvent) FormatMessage() string {
 //
 type GenerateImageCommitTransactionFailedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var GenerateImageCommitTransactionFailedEventName string = "generate_image_commit_transaction_failed"
@@ -4245,7 +4369,8 @@ func (e *GenerateImageCommitTransactionFailedEvent) FormatMessage() string {
 //
 type GenerateImageFetchFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var GenerateImageFetchFailedEventName string = "generate_image_fetch_failed"
@@ -4293,6 +4418,9 @@ func (e *GenerateImageFetchFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *GenerateImageFetchFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *GenerateImageFetchFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *GenerateImageFetchFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -4311,8 +4439,9 @@ func (e *GenerateImageFetchFailedEvent) FormatMessage() string {
 //
 type ExistingImageReusedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
-    ImageType string
+        InfraEnvId strfmt.UUID
+        ImageType string
+    Info string
 }
 
 var ExistingImageReusedEventName string = "existing_image_reused"
@@ -4366,6 +4495,9 @@ func (e *ExistingImageReusedEvent) GetClusterId() *strfmt.UUID {
 func (e *ExistingImageReusedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *ExistingImageReusedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *ExistingImageReusedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -4385,7 +4517,8 @@ func (e *ExistingImageReusedEvent) FormatMessage() string {
 //
 type InstallConfigAppliedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var InstallConfigAppliedEventName string = "install_config_applied"
@@ -4448,7 +4581,8 @@ func (e *InstallConfigAppliedEvent) FormatMessage() string {
 //
 type ProxySettingsChangedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ProxySettingsChangedEventName string = "proxy_settings_changed"
@@ -4511,11 +4645,12 @@ func (e *ProxySettingsChangedEvent) FormatMessage() string {
 //
 type DiskSpeedSlowerThanSupportedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostDisk string
-    FdatasyncDuration int64
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostDisk string
+        FdatasyncDuration int64
+    Info string
 }
 
 var DiskSpeedSlowerThanSupportedEventName string = "disk_speed_slower_than_supported"
@@ -4590,6 +4725,9 @@ func (e *DiskSpeedSlowerThanSupportedEvent) GetHostId() strfmt.UUID {
 func (e *DiskSpeedSlowerThanSupportedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *DiskSpeedSlowerThanSupportedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *DiskSpeedSlowerThanSupportedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -4612,10 +4750,11 @@ func (e *DiskSpeedSlowerThanSupportedEvent) FormatMessage() string {
 //
 type DisableHostFetchFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var DisableHostFetchFailedEventName string = "disable_host_fetch_failed"
@@ -4684,6 +4823,9 @@ func (e *DisableHostFetchFailedEvent) GetHostId() strfmt.UUID {
 func (e *DisableHostFetchFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *DisableHostFetchFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *DisableHostFetchFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -4705,10 +4847,11 @@ func (e *DisableHostFetchFailedEvent) FormatMessage() string {
 //
 type HostDisableFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostDisableFailedEventName string = "host_disable_failed"
@@ -4777,6 +4920,9 @@ func (e *HostDisableFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostDisableFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostDisableFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostDisableFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -4798,10 +4944,11 @@ func (e *HostDisableFailedEvent) FormatMessage() string {
 //
 type HostDisabledEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostDisabledEventName string = "host_disabled"
@@ -4870,6 +5017,9 @@ func (e *HostDisabledEvent) GetHostId() strfmt.UUID {
 func (e *HostDisabledEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostDisabledEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostDisabledEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -4891,10 +5041,11 @@ func (e *HostDisabledEvent) FormatMessage() string {
 //
 type EnableHostFetchFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var EnableHostFetchFailedEventName string = "enable_host_fetch_failed"
@@ -4963,6 +5114,9 @@ func (e *EnableHostFetchFailedEvent) GetHostId() strfmt.UUID {
 func (e *EnableHostFetchFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *EnableHostFetchFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *EnableHostFetchFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -4984,10 +5138,11 @@ func (e *EnableHostFetchFailedEvent) FormatMessage() string {
 //
 type EnableHostDisableFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var EnableHostDisableFailedEventName string = "enable_host_disable_failed"
@@ -5056,6 +5211,9 @@ func (e *EnableHostDisableFailedEvent) GetHostId() strfmt.UUID {
 func (e *EnableHostDisableFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *EnableHostDisableFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *EnableHostDisableFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5077,10 +5235,11 @@ func (e *EnableHostDisableFailedEvent) FormatMessage() string {
 //
 type HostEnabledEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostEnabledEventName string = "host_enabled"
@@ -5149,6 +5308,9 @@ func (e *HostEnabledEvent) GetHostId() strfmt.UUID {
 func (e *HostEnabledEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostEnabledEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostEnabledEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5170,9 +5332,10 @@ func (e *HostEnabledEvent) FormatMessage() string {
 //
 type HostDiscoveryIgnitionConfigAppliedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostDiscoveryIgnitionConfigAppliedEventName string = "host_discovery_ignition_config_applied"
@@ -5235,6 +5398,9 @@ func (e *HostDiscoveryIgnitionConfigAppliedEvent) GetHostId() strfmt.UUID {
 func (e *HostDiscoveryIgnitionConfigAppliedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostDiscoveryIgnitionConfigAppliedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostDiscoveryIgnitionConfigAppliedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5255,9 +5421,10 @@ func (e *HostDiscoveryIgnitionConfigAppliedEvent) FormatMessage() string {
 //
 type HostResetFetchFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostResetFetchFailedEventName string = "host_reset_fetch_failed"
@@ -5320,6 +5487,9 @@ func (e *HostResetFetchFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostResetFetchFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostResetFetchFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostResetFetchFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5340,10 +5510,11 @@ func (e *HostResetFetchFailedEvent) FormatMessage() string {
 //
 type HostLogsUploadedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostLogsUploadedEventName string = "host_logs_uploaded"
@@ -5412,6 +5583,9 @@ func (e *HostLogsUploadedEvent) GetHostId() strfmt.UUID {
 func (e *HostLogsUploadedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostLogsUploadedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostLogsUploadedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5433,7 +5607,8 @@ func (e *HostLogsUploadedEvent) FormatMessage() string {
 //
 type ClusterLogsUploadedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
+        ClusterId strfmt.UUID
+    Info string
 }
 
 var ClusterLogsUploadedEventName string = "cluster_logs_uploaded"
@@ -5496,10 +5671,11 @@ func (e *ClusterLogsUploadedEvent) FormatMessage() string {
 //
 type HostApprovedUpdatedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    HostName string
-    ApprovedValue bool
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        HostName string
+        ApprovedValue bool
+    Info string
 }
 
 var HostApprovedUpdatedEventName string = "host_approved_updated"
@@ -5568,6 +5744,9 @@ func (e *HostApprovedUpdatedEvent) GetHostId() strfmt.UUID {
 func (e *HostApprovedUpdatedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostApprovedUpdatedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostApprovedUpdatedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5589,10 +5768,11 @@ func (e *HostApprovedUpdatedEvent) FormatMessage() string {
 //
 type HostRegistrationSucceededEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+    Info string
 }
 
 var HostRegistrationSucceededEventName string = "host_registration_succeeded"
@@ -5661,6 +5841,9 @@ func (e *HostRegistrationSucceededEvent) GetHostId() strfmt.UUID {
 func (e *HostRegistrationSucceededEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostRegistrationSucceededEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostRegistrationSucceededEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5682,7 +5865,8 @@ func (e *HostRegistrationSucceededEvent) FormatMessage() string {
 //
 type GenerateImageFormatFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var GenerateImageFormatFailedEventName string = "generate_image_format_failed"
@@ -5730,6 +5914,9 @@ func (e *GenerateImageFormatFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *GenerateImageFormatFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *GenerateImageFormatFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *GenerateImageFormatFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5748,7 +5935,8 @@ func (e *GenerateImageFormatFailedEvent) FormatMessage() string {
 //
 type GenerateMinimalIsoFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var GenerateMinimalIsoFailedEventName string = "generate_minimal_iso_failed"
@@ -5796,6 +5984,9 @@ func (e *GenerateMinimalIsoFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *GenerateMinimalIsoFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *GenerateMinimalIsoFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *GenerateMinimalIsoFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5814,7 +6005,8 @@ func (e *GenerateMinimalIsoFailedEvent) FormatMessage() string {
 //
 type UploadImageFailedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
+        InfraEnvId strfmt.UUID
+    Info string
 }
 
 var UploadImageFailedEventName string = "upload_image_failed"
@@ -5862,6 +6054,9 @@ func (e *UploadImageFailedEvent) GetClusterId() *strfmt.UUID {
 func (e *UploadImageFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *UploadImageFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *UploadImageFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5880,8 +6075,9 @@ func (e *UploadImageFailedEvent) FormatMessage() string {
 //
 type IgnitionConfigImageGeneratedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
-    Details string
+        InfraEnvId strfmt.UUID
+        Details string
+    Info string
 }
 
 var IgnitionConfigImageGeneratedEventName string = "ignition_config_image_generated"
@@ -5935,6 +6131,9 @@ func (e *IgnitionConfigImageGeneratedEvent) GetClusterId() *strfmt.UUID {
 func (e *IgnitionConfigImageGeneratedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *IgnitionConfigImageGeneratedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *IgnitionConfigImageGeneratedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -5954,10 +6153,11 @@ func (e *IgnitionConfigImageGeneratedEvent) FormatMessage() string {
 //
 type RefreshHostOrClusterStatusesFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    Message string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        Message string
+    Info string
 }
 
 var RefreshHostOrClusterStatusesFailedEventName string = "refresh_host_or_cluster_statuses_failed"
@@ -6026,6 +6226,9 @@ func (e *RefreshHostOrClusterStatusesFailedEvent) GetHostId() strfmt.UUID {
 func (e *RefreshHostOrClusterStatusesFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *RefreshHostOrClusterStatusesFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *RefreshHostOrClusterStatusesFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -6047,11 +6250,12 @@ func (e *RefreshHostOrClusterStatusesFailedEvent) FormatMessage() string {
 //
 type HostInstallProgressUpdatedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    HostName string
-    Event string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        HostName string
+        Event string
+    Info string
 }
 
 var HostInstallProgressUpdatedEventName string = "host_install_progress_updated"
@@ -6126,6 +6330,9 @@ func (e *HostInstallProgressUpdatedEvent) GetHostId() strfmt.UUID {
 func (e *HostInstallProgressUpdatedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostInstallProgressUpdatedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostInstallProgressUpdatedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -6148,10 +6355,11 @@ func (e *HostInstallProgressUpdatedEvent) FormatMessage() string {
 //
 type RegisterHostToInfraEnvFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    Message string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        Message string
+    Info string
 }
 
 var RegisterHostToInfraEnvFailedEventName string = "register_host_to_infra_env_failed"
@@ -6220,6 +6428,9 @@ func (e *RegisterHostToInfraEnvFailedEvent) GetHostId() strfmt.UUID {
 func (e *RegisterHostToInfraEnvFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *RegisterHostToInfraEnvFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *RegisterHostToInfraEnvFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -6241,10 +6452,11 @@ func (e *RegisterHostToInfraEnvFailedEvent) FormatMessage() string {
 //
 type HostRegistrationFailedEvent struct {
     eventName string
-    HostId strfmt.UUID
-    InfraEnvId strfmt.UUID
-    ClusterId *strfmt.UUID
-    Message string
+        HostId strfmt.UUID
+        InfraEnvId strfmt.UUID
+        ClusterId *strfmt.UUID
+        Message string
+    Info string
 }
 
 var HostRegistrationFailedEventName string = "host_registration_failed"
@@ -6313,6 +6525,9 @@ func (e *HostRegistrationFailedEvent) GetHostId() strfmt.UUID {
 func (e *HostRegistrationFailedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
 }
+func (e *HostRegistrationFailedEvent) GetInfo() string {
+    return e.Info
+}
 
 func (e *HostRegistrationFailedEvent) format(message *string) string {
     r := strings.NewReplacer(
@@ -6334,8 +6549,9 @@ func (e *HostRegistrationFailedEvent) FormatMessage() string {
 //
 type InactiveClustersDeregisteredEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    Message string
+        ClusterId strfmt.UUID
+        Message string
+    Info string
 }
 
 var InactiveClustersDeregisteredEventName string = "inactive_clusters_deregistered"
@@ -6405,8 +6621,9 @@ func (e *InactiveClustersDeregisteredEvent) FormatMessage() string {
 //
 type ClustersPermanentlyDeletedEvent struct {
     eventName string
-    ClusterId strfmt.UUID
-    Message string
+        ClusterId strfmt.UUID
+        Message string
+    Info string
 }
 
 var ClustersPermanentlyDeletedEventName string = "clusters_permanently_deleted"
@@ -6476,8 +6693,9 @@ func (e *ClustersPermanentlyDeletedEvent) FormatMessage() string {
 //
 type ImageInfoUpdatedEvent struct {
     eventName string
-    InfraEnvId strfmt.UUID
-    Details string
+        InfraEnvId strfmt.UUID
+        Details string
+    Info string
 }
 
 var ImageInfoUpdatedEventName string = "image_info_updated"
@@ -6530,6 +6748,9 @@ func (e *ImageInfoUpdatedEvent) GetClusterId() *strfmt.UUID {
 }
 func (e *ImageInfoUpdatedEvent) GetInfraEnvId() strfmt.UUID {
     return e.InfraEnvId
+}
+func (e *ImageInfoUpdatedEvent) GetInfo() string {
+    return e.Info
 }
 
 func (e *ImageInfoUpdatedEvent) format(message *string) string {
