@@ -7619,8 +7619,7 @@ func init() {
         "role",
         "boot_device",
         "controller_image",
-        "installer_image",
-        "high_availability_mode"
+        "installer_image"
       ],
       "properties": {
         "boot_device": {
@@ -16713,8 +16712,7 @@ func init() {
         "role",
         "boot_device",
         "controller_image",
-        "installer_image",
-        "high_availability_mode"
+        "installer_image"
       ],
       "properties": {
         "boot_device": {
