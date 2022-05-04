@@ -471,22 +471,27 @@ func (r *AgentReconciler) updateStatus(ctx context.Context, log logrus.FieldLogg
 
 		// Determine whether or not CSRs should be automatically signed.
 		if cluster != nil {
+			log.Info("Cluster is not nil, checking whether or not we should apply CSRs")
 			if cluster.UserManagedNetworking == nil {
 				log.Error("UserManagedNetworking was not set, cannot determine whether or not to auto approve CSRs")
 				shouldAutoApproveCSRs = false
 			} else {
 				isNonePlatform := *(cluster.UserManagedNetworking)
 				isDay2RebootingHost, err := r.isDay2RebootingHost(ctx, agent, h)
+				log.Infof("isNonePlatform: %v", isNonePlatform)
+				log.Infof("Is day 2 rebooting host: %v", isDay2RebootingHost)
 				if err != nil {
 					log.WithError(err).Errorf("Failed to find if agent %s/%s is rebooting3", agent.Namespace, agent.Name)
 					return ctrl.Result{RequeueAfter: defaultRequeueAfterOnError}, nil
 				}
 				// Note: Once SNO is supported on more than just the "None" platform, this will need to be changed.
 				shouldAutoApproveCSRs = isDay2RebootingHost && isNonePlatform
+				log.Infof("shouldAutoApproveCSRs: %v", shouldAutoApproveCSRs)
 			}
 		}
 
 		if h.Progress != nil && h.Progress.CurrentStage != "" {
+			log.Infof("h.Progress != nil && h.Progress.CurrentStage != \"\"")
 			if shouldAutoApproveCSRs {
 				agent.Status.Progress.CurrentStage = models.HostStageRebooting
 			} else {
