@@ -728,9 +728,9 @@ func (b *bareMetalInventory) createAndUploadDay2NodeIgnition(ctx context.Context
 	log.Infof("Starting createAndUploadDay2NodeIgnition for cluster %s, host %s", cluster.ID, host.ID)
 
 	// Specify ignition endpoint based on cluster configuration:
-	address := cluster.APIVip
+	address := swag.StringValue(cluster.APIVipDNSName)
 	if address == "" {
-		address = swag.StringValue(cluster.APIVipDNSName)
+		address = cluster.APIVip
 	}
 
 	ignitionEndpointUrl := fmt.Sprintf("http://%s:22624/config/%s", address, host.MachineConfigPoolName)
