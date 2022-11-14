@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"path/filepath"
+
 	ignition_types "github.com/coreos/ignition/v2/config/v3_2/types"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
@@ -28,6 +30,9 @@ import (
 	"github.com/openshift/assisted-service/pkg/conversions"
 	"github.com/vincent-petithory/dataurl"
 	"gorm.io/gorm"
+	"k8s.io/client-go/rest"
+	envtest "sigs.k8s.io/controller-runtime/pkg/envtest"
+	//"time"
 )
 
 //go:embed test_hypershift_kubeconfig
@@ -35,6 +40,35 @@ var test_hypershift_kubeconfig []byte
 
 //go:embed test_regular_kubeconfig
 var test_regular_kubeconfig []byte
+
+var _ = Describe("envtest test", func() {
+	var cfg *rest.Config
+	var testEnv *envtest.Environment
+
+	BeforeEach(func() {
+		testEnv = &envtest.Environment{
+			CRDDirectoryPaths:     []string{filepath.Join("/tmp", "config", "crd", "bases")},
+			ErrorIfCRDPathMissing: true,
+			BinaryAssetsDirectory: "/usr/bin",
+		}
+		var err error
+		cfg, err = testEnv.Start()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cfg).NotTo(BeNil())
+	})
+
+	Context("Assisted-Installer Agent Controller test", func() {
+		FIt("Should create a large delay so that I can look at open ports", func() {
+			//time.Sleep(10 * time.Minute)
+		})
+	})
+
+	AfterEach(func() {
+		err := testEnv.Stop()
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+})
 
 var _ = Describe("Validations test", func() {
 

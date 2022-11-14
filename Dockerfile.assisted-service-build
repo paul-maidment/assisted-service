@@ -25,6 +25,18 @@ RUN dnf install -y 'dnf-command(config-manager)' && \
         openssl postgresql sqlite gcc genisoimage git docker-ce-cli libvirt-client libvirt-devel java && \
     dnf clean all
 
+# Download and install etcd
+RUN dnf install -y wget
+RUN curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest | grep browser_download_url | grep linux-amd64 | cut -d '"' -f 4 | wget -i - -O /tmp/etcd.tar.gz
+RUN mkdir -p /tmp/etcd && tar -xvf /tmp/etcd.tar.gz -C /tmp/etcd
+RUN ls /tmp/etcd | awk '{print $1}'  | xargs -I {} mv /tmp/etcd/{} /tmp/etcd/install
+RUN cp /tmp/etcd/install/etcd /usr/bin/etcd
+RUN cp /tmp/etcd/install/etcdctl /usr/bin/etcdctl
+
+# Download a working copy of kube-apiserver
+RUN curl -L -O https://dl.k8s.io/v1.25.4/bin/linux/amd64/kube-apiserver && chmod +x kube-apiserver
+RUN cp kube-apiserver /usr/bin/kube-apiserver
+
 WORKDIR /home/assisted-service
 RUN mkdir build $TOOLS --mode g+xw
 COPY ./hack/setup_env.sh ./dev-requirements.txt ./
