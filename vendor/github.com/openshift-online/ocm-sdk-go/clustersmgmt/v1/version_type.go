@@ -39,16 +39,18 @@ const VersionNilKind = "VersionNil"
 //
 // Representation of an _OpenShift_ version.
 type Version struct {
-	bitmap_            uint32
-	id                 string
-	href               string
-	availableUpgrades  []string
-	channelGroup       string
-	endOfLifeTimestamp time.Time
-	rawID              string
-	rosaEnabled        bool
-	default_           bool
-	enabled            bool
+	bitmap_                   uint32
+	id                        string
+	href                      string
+	availableUpgrades         []string
+	channelGroup              string
+	endOfLifeTimestamp        time.Time
+	rawID                     string
+	releaseImage              string
+	rosaEnabled               bool
+	default_                  bool
+	enabled                   bool
+	hostedControlPlaneEnabled bool
 }
 
 // Kind returns the name of the type of the object.
@@ -254,12 +256,35 @@ func (o *Version) GetEndOfLifeTimestamp() (value time.Time, ok bool) {
 	return
 }
 
+// HostedControlPlaneEnabled returns the value of the 'hosted_control_plane_enabled' attribute, or
+// the zero value of the type if the attribute doesn't have a value.
+//
+// HostedControlPlaneEnabled indicates whether this version can be used to create HCP clusters.
+func (o *Version) HostedControlPlaneEnabled() bool {
+	if o != nil && o.bitmap_&512 != 0 {
+		return o.hostedControlPlaneEnabled
+	}
+	return false
+}
+
+// GetHostedControlPlaneEnabled returns the value of the 'hosted_control_plane_enabled' attribute and
+// a flag indicating if the attribute has a value.
+//
+// HostedControlPlaneEnabled indicates whether this version can be used to create HCP clusters.
+func (o *Version) GetHostedControlPlaneEnabled() (value bool, ok bool) {
+	ok = o != nil && o.bitmap_&512 != 0
+	if ok {
+		value = o.hostedControlPlaneEnabled
+	}
+	return
+}
+
 // RawID returns the value of the 'raw_ID' attribute, or
 // the zero value of the type if the attribute doesn't have a value.
 //
 // RawID is the id of the version - without channel group and prefix.
 func (o *Version) RawID() string {
-	if o != nil && o.bitmap_&512 != 0 {
+	if o != nil && o.bitmap_&1024 != 0 {
 		return o.rawID
 	}
 	return ""
@@ -270,9 +295,32 @@ func (o *Version) RawID() string {
 //
 // RawID is the id of the version - without channel group and prefix.
 func (o *Version) GetRawID() (value string, ok bool) {
-	ok = o != nil && o.bitmap_&512 != 0
+	ok = o != nil && o.bitmap_&1024 != 0
 	if ok {
 		value = o.rawID
+	}
+	return
+}
+
+// ReleaseImage returns the value of the 'release_image' attribute, or
+// the zero value of the type if the attribute doesn't have a value.
+//
+// ReleaseImage contains the URI of Openshift release image
+func (o *Version) ReleaseImage() string {
+	if o != nil && o.bitmap_&2048 != 0 {
+		return o.releaseImage
+	}
+	return ""
+}
+
+// GetReleaseImage returns the value of the 'release_image' attribute and
+// a flag indicating if the attribute has a value.
+//
+// ReleaseImage contains the URI of Openshift release image
+func (o *Version) GetReleaseImage() (value string, ok bool) {
+	ok = o != nil && o.bitmap_&2048 != 0
+	if ok {
+		value = o.releaseImage
 	}
 	return
 }
