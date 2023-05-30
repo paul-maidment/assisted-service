@@ -49,14 +49,17 @@ spec:
 	)
 
 	BeforeEach(func() {
+		isCustomManifest := true
 		manifestFile = models.Manifest{
-			FileName: "99-openshift-machineconfig-master-kargs.yaml",
-			Folder:   "openshift",
+			FileName:         "99-openshift-machineconfig-master-kargs.yaml",
+			Folder:           "openshift",
+			IsCustomManifest: &isCustomManifest,
 		}
 
 		renamedManifestFile = models.Manifest{
-			FileName: "99-openshift-machineconfig-master-renamed-kargs.yaml",
-			Folder:   "openshift",
+			FileName:         "99-openshift-machineconfig-master-renamed-kargs.yaml",
+			Folder:           "openshift",
+			IsCustomManifest: &isCustomManifest,
 		}
 
 		registerClusterReply, err := userBMClient.Installer.V2RegisterCluster(ctx, &installer.V2RegisterClusterParams{
@@ -108,7 +111,7 @@ spec:
 
 			var found bool = false
 			for _, manifest := range response.Payload {
-				if *manifest == manifestFile {
+				if manifest.FileName == manifestFile.FileName && manifest.Folder == manifestFile.Folder && *manifest.IsCustomManifest == true {
 					found = true
 					break
 				}
@@ -151,7 +154,7 @@ spec:
 
 			var found bool = false
 			for _, manifest := range response.Payload {
-				if *manifest == manifestFile {
+				if manifest.FileName == manifestFile.FileName && manifest.Folder == manifestFile.Folder && *manifest.IsCustomManifest == true {
 					found = true
 					break
 				}

@@ -34,6 +34,7 @@ var _ manifestsapi.ManifestsAPI = &Manifests{}
 
 // ManifestFolder represents the manifests folder on s3 per cluster
 const ManifestFolder = "manifests"
+const ManifestMetadataFolder = "manifest-attributes"
 
 // NewManifestsAPI returns manifests API
 func NewManifestsAPI(db *gorm.DB, log logrus.FieldLogger, objectHandler s3wrapper.API, usageAPI usage.API) *Manifests {
@@ -53,7 +54,12 @@ type Manifests struct {
 	usageAPI      usage.API
 }
 
-func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params operations.V2CreateClusterManifestParams) (*models.Manifest, error) {
+const (
+	ManifestSourceCustomManifest string = "custom-manifest"
+	ManifestSourceGenerated      string = "generated"
+)
+
+func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params operations.V2CreateClusterManifestParams, isCustomManifest bool) (*models.Manifest, error) {
 	log := logutil.FromContext(ctx, m.log)
 	log.Infof("Creating manifest in cluster %s", params.ClusterID.String())
 
@@ -90,9 +96,72 @@ func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params op
 		return nil, err
 	}
 
+	err = m.createMetadataForManifest(ctx, params.ClusterID, path, isCustomManifest)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Infof("Done creating manifest %s for cluster %s", path, params.ClusterID.String())
-	manifest := models.Manifest{FileName: fileName, Folder: folder}
+	manifest := models.Manifest{FileName: fileName, Folder: folder, IsCustomManifest: &isCustomManifest}
 	return &manifest, nil
+}
+
+func (m *Manifests) isCustomManifest(ctx context.Context, clusterID string, folder string, fileName string) *bool {
+	var is_custom_manifest *bool
+	manifestMetadataPrefix := filepath.Join(clusterID, ManifestMetadataFolder)
+	for _, manifestSourceKey := range []string{ManifestSourceCustomManifest, ManifestSourceGenerated} {
+		manifestSourceValue, err := m.objectHandler.DoesObjectExist(ctx, filepath.Join(manifestMetadataPrefix, folder, fileName, manifestSourceKey))
+		if err != nil {
+			m.log.Warnf("Could not determine if manifest %s/%s is a %s manifest due to error %s, leaving this as nil", folder, fileName, manifestSourceKey, err.Error())
+		}
+		switch manifestSourceKey {
+		case ManifestSourceCustomManifest:
+			if manifestSourceValue {
+				trueValue := true
+				is_custom_manifest = &trueValue
+			}
+		case ManifestSourceGenerated:
+			if manifestSourceValue {
+				falseValue := false
+				is_custom_manifest = &falseValue
+			}
+		default:
+			is_custom_manifest = nil
+		}
+	}
+	return is_custom_manifest
+}
+
+func (m *Manifests) deleteMetadataForManifest(ctx context.Context, clusterID strfmt.UUID, path string) error {
+	for _, manifestSource := range []string{ManifestSourceCustomManifest, ManifestSourceGenerated} {
+		objectName := GetManifestMetadataObjectName(clusterID, path, manifestSource)
+		exists := false
+		var err error
+		if exists, err = m.objectHandler.DoesObjectExist(ctx, objectName); err != nil {
+			return errors.Wrapf(err, "Failed to delete metadata object %s from storage for cluster %s", objectName, clusterID)
+		}
+		if exists {
+			if _, err = m.objectHandler.DeleteObject(ctx, objectName); err != nil {
+				return errors.Wrapf(err, "Failed to delete metadata object %s from storage for cluster %s", objectName, clusterID)
+			}
+		}
+	}
+	return nil
+}
+
+func (m *Manifests) createMetadataForManifest(ctx context.Context, clusterID strfmt.UUID, path string, isCustomManifest bool) error {
+	log := logutil.FromContext(ctx, m.log)
+	log.Infof("Is custom manifest %t", isCustomManifest)
+	manifestSource := ManifestSourceGenerated
+	if isCustomManifest {
+		manifestSource = ManifestSourceCustomManifest
+	}
+	log.Infof("Adding manifest source %s metadata to cluster %s", manifestSource, clusterID)
+	objectName := GetManifestMetadataObjectName(clusterID, path, manifestSource)
+	if err := m.objectHandler.Upload(ctx, []byte{}, objectName); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *Manifests) ListClusterManifestsInternal(ctx context.Context, params operations.V2ListClusterManifestsParams) (models.ListManifests, error) {
@@ -118,12 +187,14 @@ func (m *Manifests) ListClusterManifestsInternal(ctx context.Context, params ope
 	for _, file := range files {
 		parts := strings.Split(strings.Trim(file, string(filepath.Separator)), string(filepath.Separator))
 		if len(parts) > 2 {
-			manifests = append(manifests, &models.Manifest{FileName: filepath.Join(parts[3:]...), Folder: parts[2]})
+			fileName := filepath.Join(parts[3:]...)
+			folder := parts[2]
+			is_custom_manifest := m.isCustomManifest(ctx, params.ClusterID.String(), folder, fileName)
+			manifests = append(manifests, &models.Manifest{FileName: fileName, Folder: folder, IsCustomManifest: is_custom_manifest})
 		} else {
 			return nil, common.NewApiError(http.StatusInternalServerError, errors.Errorf("Cannot list file %s in cluster %s", file, params.ClusterID.String()))
 		}
 	}
-
 	return manifests, nil
 }
 
@@ -149,11 +220,17 @@ func (m *Manifests) DeleteClusterManifestInternal(ctx context.Context, params op
 		return err
 	}
 
+	err = m.deleteMetadataForManifest(ctx, params.ClusterID, path)
+	if err != nil {
+		return err
+	}
+
 	log.Infof("Done deleting cluster manifest %s for cluster %s", path, params.ClusterID.String())
 	return nil
 }
 
 func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params operations.V2UpdateClusterManifestParams) (*models.Manifest, error) {
+	m.log.Infof("Call to update cluster manifest internal")
 	if params.UpdateManifestParams.UpdatedFolder == nil {
 		params.UpdateManifestParams.UpdatedFolder = &params.UpdateManifestParams.Folder
 	}
@@ -162,6 +239,9 @@ func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params op
 	}
 	srcFolder, srcFileName, srcPath := m.getManifestPathsFromParameters(ctx, &params.UpdateManifestParams.Folder, &params.UpdateManifestParams.FileName)
 	destFolder, destFileName, destPath := m.getManifestPathsFromParameters(ctx, params.UpdateManifestParams.UpdatedFolder, params.UpdateManifestParams.UpdatedFileName)
+
+	m.log.Infof("srcFolder: %s, srcFileName: %s, srcPath: %s", srcFolder, srcFileName, srcPath)
+	m.log.Infof("destFolder: %s, destFileName: %s, destPath: %s", destFolder, destFileName, destPath)
 
 	cluster, err := common.GetClusterFromDB(m.db, params.ClusterID, common.SkipEagerLoading)
 	if err != nil {
@@ -202,16 +282,30 @@ func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params op
 		return nil, err
 	}
 
+	isCustomManifest := m.isCustomManifest(ctx, params.ClusterID.String(), srcFolder, srcFileName)
+	if isCustomManifest != nil {
+		err = m.createMetadataForManifest(ctx, params.ClusterID, destPath, *isCustomManifest)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if srcPath != destPath {
 		m.log.Infof("Removing old manifest %s for cluster %s as the new file is at %s", srcPath, params.ClusterID.String(), destPath)
 		err = m.deleteManifest(ctx, params.ClusterID, srcPath)
 		if err != nil {
 			return nil, err
 		}
+		if isCustomManifest != nil {
+			err = m.deleteMetadataForManifest(ctx, params.ClusterID, srcPath)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	m.log.Infof("Done creating manifest %s for cluster %s", destFileName, params.ClusterID.String())
-	manifest := models.Manifest{FileName: destFileName, Folder: destFolder}
+	manifest := models.Manifest{FileName: destFileName, Folder: destFolder, IsCustomManifest: isCustomManifest}
 	return &manifest, nil
 }
 
@@ -277,6 +371,11 @@ func (m *Manifests) setUsage(active bool, manifest *models.Manifest, clusterID s
 // GetManifestObjectName returns the manifest object name as stored in S3
 func GetManifestObjectName(clusterID strfmt.UUID, fileName string) string {
 	return filepath.Join(string(clusterID), ManifestFolder, fileName)
+}
+
+// GetManifestObjectName returns the manifest object name as stored in S3
+func GetManifestMetadataObjectName(clusterID strfmt.UUID, fileName string, manifestSource string) string {
+	return filepath.Join(string(clusterID), ManifestMetadataFolder, fileName, manifestSource)
 }
 
 // GetClusterManifests returns a list of cluster manifests
