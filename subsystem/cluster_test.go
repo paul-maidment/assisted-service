@@ -2819,9 +2819,11 @@ spec:
   kernelArguments:
   - 'loglevel=7'`
 				base64Content := base64.StdEncoding.EncodeToString([]byte(content))
+				isCustomManifest := true
 				manifest := models.Manifest{
-					FileName: "99-openshift-machineconfig-master-kargs.yaml",
-					Folder:   "openshift",
+					FileName:         "99-openshift-machineconfig-master-kargs.yaml",
+					Folder:           "openshift",
+					IsCustomManifest: &isCustomManifest,
 				}
 				response, err := userBMClient.Manifests.V2CreateClusterManifest(ctx, &manifests.V2CreateClusterManifestParams{
 					ClusterID: clusterID,

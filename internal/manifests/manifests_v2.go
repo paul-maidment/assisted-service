@@ -6,13 +6,14 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/openshift/assisted-service/internal/common"
 	"github.com/openshift/assisted-service/internal/usage"
+	"github.com/openshift/assisted-service/models"
 	logutil "github.com/openshift/assisted-service/pkg/log"
 	operations "github.com/openshift/assisted-service/restapi/operations/manifests"
 )
 
 func (m *Manifests) V2CreateClusterManifest(ctx context.Context, params operations.V2CreateClusterManifestParams) middleware.Responder {
 	log := logutil.FromContext(ctx, m.log)
-	manifest, err := m.CreateClusterManifestInternal(ctx, params)
+	manifest, err := m.CreateClusterManifestInternal(ctx, params, string(models.ManifestManifestSourceUserSupplied))
 	if err != nil {
 		return common.GenerateErrorResponder(err)
 	}

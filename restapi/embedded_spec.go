@@ -9028,6 +9028,15 @@ func init() {
             "manifests",
             "openshift"
           ]
+        },
+        "manifest_source": {
+          "description": "Indicates the source of this manifest",
+          "type": "string",
+          "enum": [
+            "user_supplied",
+            "system_generated",
+            "unknown"
+          ]
         }
       }
     },
@@ -19335,6 +19344,15 @@ func init() {
           "enum": [
             "manifests",
             "openshift"
+          ]
+        },
+        "manifest_source": {
+          "description": "Indicates the source of this manifest",
+          "type": "string",
+          "enum": [
+            "user_supplied",
+            "system_generated",
+            "unknown"
           ]
         }
       }

@@ -1156,7 +1156,8 @@ func (r *ClusterDeploymentsReconciler) syncManifests(ctx context.Context, log lo
 				Content:  swag.String(base64.StdEncoding.EncodeToString([]byte(manifest))),
 				FileName: swag.String(filename),
 				Folder:   swag.String(models.ManifestFolderOpenshift),
-			}})
+			}},
+			string(models.ManifestManifestSourceUserSupplied))
 		if err != nil {
 			log.WithError(err).Errorf("Failed to create cluster deployment %s manifest %s", cluster.KubeKeyName, filename)
 			return err

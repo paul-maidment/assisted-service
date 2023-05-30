@@ -34,6 +34,7 @@ var _ manifestsapi.ManifestsAPI = &Manifests{}
 
 // ManifestFolder represents the manifests folder on s3 per cluster
 const ManifestFolder = "manifests"
+const ManifestMetadataFolder = "manifest-attributes"
 
 // NewManifestsAPI returns manifests API
 func NewManifestsAPI(db *gorm.DB, log logrus.FieldLogger, objectHandler s3wrapper.API, usageAPI usage.API) *Manifests {
@@ -53,7 +54,11 @@ type Manifests struct {
 	usageAPI      usage.API
 }
 
-func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params operations.V2CreateClusterManifestParams) (*models.Manifest, error) {
+type ManifestMetadata struct {
+	Source string
+}
+
+func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params operations.V2CreateClusterManifestParams, manifestSource string) (*models.Manifest, error) {
 	log := logutil.FromContext(ctx, m.log)
 	log.Infof("Creating manifest in cluster %s", params.ClusterID.String())
 
@@ -90,9 +95,70 @@ func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params op
 		return nil, err
 	}
 
+	manifestMetadata := ManifestMetadata{Source: manifestSource}
+	err = m.storeManifestMetadata(ctx, params.ClusterID, path, manifestMetadata)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Infof("Done creating manifest %s for cluster %s", path, params.ClusterID.String())
-	manifest := models.Manifest{FileName: fileName, Folder: folder}
+	manifest := models.Manifest{FileName: fileName, Folder: folder, ManifestSource: string(manifestMetadata.Source)}
 	return &manifest, nil
+}
+
+func (m *Manifests) getManifestMetadata(ctx context.Context, clusterID strfmt.UUID, folder string, fileName string) ManifestMetadata {
+	manifestMetadata := ManifestMetadata{Source: string(models.ManifestManifestSourceUnknown)}
+	log := logutil.FromContext(ctx, m.log)
+	objectName := GetManifestMetadataObjectName(clusterID, filepath.Join(folder, fileName))
+	exists, err := m.objectHandler.DoesObjectExist(ctx, objectName)
+	if err != nil {
+		log.Errorf("Unable to determine object existence for manifest metadata for object: %s due to error %s, returning default metadata", objectName, err.Error())
+	} else if exists {
+		respBody, _, err := m.objectHandler.Download(ctx, objectName)
+		if err != nil {
+			log.Errorf("Unable to download manifest metadata for object: %s due to error %s, returning default metadata", objectName, err.Error())
+		}
+		content, err := ioutil.ReadAll(respBody)
+		if err != nil {
+			log.Errorf("Unable to read manifest metadata for object: %s due to error %s, returning default metadata", objectName, err.Error())
+		}
+		err = json.Unmarshal([]byte(content), &manifestMetadata)
+		if err != nil {
+			log.Errorf("Unable to unmarshal manifest metadata for object: %s due to error %s, returning default metadata", objectName, err.Error())
+		}
+	}
+	return manifestMetadata
+}
+
+func (m *Manifests) storeManifestMetadata(ctx context.Context, clusterID strfmt.UUID, path string, manifestMetadata ManifestMetadata) error {
+	log := logutil.FromContext(ctx, m.log)
+	log.Infof("Storing manifest metdata for cluster %s", clusterID)
+	objectName := GetManifestMetadataObjectName(clusterID, path)
+	// Serialize the Manifest metadata
+	marshaledMetadata, err := json.Marshal(manifestMetadata)
+	if err != nil {
+		return err
+	}
+	if err := m.objectHandler.Upload(ctx, marshaledMetadata, objectName); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Manifests) deleteManifestMetadata(ctx context.Context, clusterID strfmt.UUID, path string) error {
+
+	objectName := GetManifestMetadataObjectName(clusterID, path)
+	exists := false
+	var err error
+	if exists, err = m.objectHandler.DoesObjectExist(ctx, objectName); err != nil {
+		return errors.Wrapf(err, "Failed to delete metadata object %s from storage for cluster %s", objectName, clusterID)
+	}
+	if exists {
+		if _, err = m.objectHandler.DeleteObject(ctx, objectName); err != nil {
+			return errors.Wrapf(err, "Failed to delete metadata object %s from storage for cluster %s", objectName, clusterID)
+		}
+	}
+	return nil
 }
 
 func (m *Manifests) ListClusterManifestsInternal(ctx context.Context, params operations.V2ListClusterManifestsParams) (models.ListManifests, error) {
@@ -118,12 +184,15 @@ func (m *Manifests) ListClusterManifestsInternal(ctx context.Context, params ope
 	for _, file := range files {
 		parts := strings.Split(strings.Trim(file, string(filepath.Separator)), string(filepath.Separator))
 		if len(parts) > 2 {
-			manifests = append(manifests, &models.Manifest{FileName: filepath.Join(parts[3:]...), Folder: parts[2]})
+			fileName := filepath.Join(parts[3:]...)
+			folder := parts[2]
+			// Even if there is no metadata in storage, a "default" metadata will be returned here
+			manifestMetadata := m.getManifestMetadata(ctx, strfmt.UUID(params.ClusterID.String()), folder, fileName)
+			manifests = append(manifests, &models.Manifest{FileName: fileName, Folder: folder, ManifestSource: string(manifestMetadata.Source)})
 		} else {
 			return nil, common.NewApiError(http.StatusInternalServerError, errors.Errorf("Cannot list file %s in cluster %s", file, params.ClusterID.String()))
 		}
 	}
-
 	return manifests, nil
 }
 
@@ -154,6 +223,7 @@ func (m *Manifests) DeleteClusterManifestInternal(ctx context.Context, params op
 }
 
 func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params operations.V2UpdateClusterManifestParams) (*models.Manifest, error) {
+	m.log.Infof("Call to update cluster manifest internal")
 	if params.UpdateManifestParams.UpdatedFolder == nil {
 		params.UpdateManifestParams.UpdatedFolder = &params.UpdateManifestParams.Folder
 	}
@@ -162,6 +232,9 @@ func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params op
 	}
 	srcFolder, srcFileName, srcPath := m.getManifestPathsFromParameters(ctx, &params.UpdateManifestParams.Folder, &params.UpdateManifestParams.FileName)
 	destFolder, destFileName, destPath := m.getManifestPathsFromParameters(ctx, params.UpdateManifestParams.UpdatedFolder, params.UpdateManifestParams.UpdatedFileName)
+
+	m.log.Infof("srcFolder: %s, srcFileName: %s, srcPath: %s", srcFolder, srcFileName, srcPath)
+	m.log.Infof("destFolder: %s, destFileName: %s, destPath: %s", destFolder, destFileName, destPath)
 
 	cluster, err := common.GetClusterFromDB(m.db, params.ClusterID, common.SkipEagerLoading)
 	if err != nil {
@@ -202,6 +275,13 @@ func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params op
 		return nil, err
 	}
 
+	manifestMetadata := m.getManifestMetadata(ctx, params.ClusterID, srcFolder, srcFileName)
+	err = m.storeManifestMetadata(ctx, params.ClusterID, destPath, manifestMetadata)
+	if err != nil {
+		return nil, err
+	}
+	
+
 	if srcPath != destPath {
 		m.log.Infof("Removing old manifest %s for cluster %s as the new file is at %s", srcPath, params.ClusterID.String(), destPath)
 		err = m.deleteManifest(ctx, params.ClusterID, srcPath)
@@ -211,7 +291,7 @@ func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params op
 	}
 
 	m.log.Infof("Done creating manifest %s for cluster %s", destFileName, params.ClusterID.String())
-	manifest := models.Manifest{FileName: destFileName, Folder: destFolder}
+	manifest := models.Manifest{FileName: destFileName, Folder: destFolder, ManifestSource: string(manifestMetadata.Source)}
 	return &manifest, nil
 }
 
@@ -277,6 +357,11 @@ func (m *Manifests) setUsage(active bool, manifest *models.Manifest, clusterID s
 // GetManifestObjectName returns the manifest object name as stored in S3
 func GetManifestObjectName(clusterID strfmt.UUID, fileName string) string {
 	return filepath.Join(string(clusterID), ManifestFolder, fileName)
+}
+
+// GetManifestObjectName returns the manifest object name as stored in S3
+func GetManifestMetadataObjectName(clusterID strfmt.UUID, fileName string) string {
+	return filepath.Join(string(clusterID), ManifestMetadataFolder, fileName, "metadata.json")
 }
 
 // GetClusterManifests returns a list of cluster manifests
@@ -417,6 +502,10 @@ func (m *Manifests) deleteManifest(ctx context.Context, clusterID strfmt.UUID, p
 			ctx,
 			http.StatusInternalServerError,
 			errors.Wrapf(err, "Failed to delete object %s from storage for cluster %s", objectName, clusterID))
+	}
+	err = m.deleteManifestMetadata(ctx, clusterID, path)
+	if err != nil {
+		return err
 	}
 	return nil
 }
