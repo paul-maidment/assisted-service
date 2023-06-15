@@ -56,7 +56,6 @@ type Manifests struct {
 
 const (
 	ManifestSourceCustomManifest string = "custom-manifest"
-	ManifestSourceGenerated      string = "generated"
 )
 
 func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params operations.V2CreateClusterManifestParams, isCustomManifest bool) (*models.Manifest, error) {
@@ -102,48 +101,30 @@ func (m *Manifests) CreateClusterManifestInternal(ctx context.Context, params op
 	}
 
 	log.Infof("Done creating manifest %s for cluster %s", path, params.ClusterID.String())
-	manifest := models.Manifest{FileName: fileName, Folder: folder, IsCustomManifest: &isCustomManifest}
+	manifest := models.Manifest{FileName: fileName, Folder: folder}
 	return &manifest, nil
 }
 
 func (m *Manifests) isCustomManifest(ctx context.Context, clusterID string, folder string, fileName string) *bool {
-	var is_custom_manifest *bool
 	manifestMetadataPrefix := filepath.Join(clusterID, ManifestMetadataFolder)
-	for _, manifestSourceKey := range []string{ManifestSourceCustomManifest, ManifestSourceGenerated} {
-		manifestSourceValue, err := m.objectHandler.DoesObjectExist(ctx, filepath.Join(manifestMetadataPrefix, folder, fileName, manifestSourceKey))
-		if err != nil {
-			m.log.Warnf("Could not determine if manifest %s/%s is a %s manifest due to error %s, leaving this as nil", folder, fileName, manifestSourceKey, err.Error())
-		}
-		switch manifestSourceKey {
-		case ManifestSourceCustomManifest:
-			if manifestSourceValue {
-				trueValue := true
-				is_custom_manifest = &trueValue
-			}
-		case ManifestSourceGenerated:
-			if manifestSourceValue {
-				falseValue := false
-				is_custom_manifest = &falseValue
-			}
-		default:
-			is_custom_manifest = nil
-		}
+	manifestSourceValue, err := m.objectHandler.DoesObjectExist(ctx, filepath.Join(manifestMetadataPrefix, folder, fileName, ManifestSourceCustomManifest))
+	if err != nil {
+		m.log.Warnf("Could not determine if manifest %s/%s is a %s manifest due to error %s, leaving this as nil", folder, fileName, ManifestSourceCustomManifest, err.Error())
 	}
-	return is_custom_manifest
+
+	return &manifestSourceValue
 }
 
 func (m *Manifests) deleteMetadataForManifest(ctx context.Context, clusterID strfmt.UUID, path string) error {
-	for _, manifestSource := range []string{ManifestSourceCustomManifest, ManifestSourceGenerated} {
-		objectName := GetManifestMetadataObjectName(clusterID, path, manifestSource)
-		exists := false
-		var err error
-		if exists, err = m.objectHandler.DoesObjectExist(ctx, objectName); err != nil {
+	objectName := GetManifestMetadataObjectName(clusterID, path, ManifestSourceCustomManifest)
+	exists := false
+	var err error
+	if exists, err = m.objectHandler.DoesObjectExist(ctx, objectName); err != nil {
+		return errors.Wrapf(err, "Failed to delete metadata object %s from storage for cluster %s", objectName, clusterID)
+	}
+	if exists {
+		if _, err = m.objectHandler.DeleteObject(ctx, objectName); err != nil {
 			return errors.Wrapf(err, "Failed to delete metadata object %s from storage for cluster %s", objectName, clusterID)
-		}
-		if exists {
-			if _, err = m.objectHandler.DeleteObject(ctx, objectName); err != nil {
-				return errors.Wrapf(err, "Failed to delete metadata object %s from storage for cluster %s", objectName, clusterID)
-			}
 		}
 	}
 	return nil
@@ -151,15 +132,12 @@ func (m *Manifests) deleteMetadataForManifest(ctx context.Context, clusterID str
 
 func (m *Manifests) createMetadataForManifest(ctx context.Context, clusterID strfmt.UUID, path string, isCustomManifest bool) error {
 	log := logutil.FromContext(ctx, m.log)
-	log.Infof("Is custom manifest %t", isCustomManifest)
-	manifestSource := ManifestSourceGenerated
 	if isCustomManifest {
-		manifestSource = ManifestSourceCustomManifest
-	}
-	log.Infof("Adding manifest source %s metadata to cluster %s", manifestSource, clusterID)
-	objectName := GetManifestMetadataObjectName(clusterID, path, manifestSource)
-	if err := m.objectHandler.Upload(ctx, []byte{}, objectName); err != nil {
-		return err
+		log.Infof("Marking manifest at path %s as a custom manifest for cluster %s", path, clusterID)
+		objectName := GetManifestMetadataObjectName(clusterID, path, ManifestSourceCustomManifest)
+		if err := m.objectHandler.Upload(ctx, []byte{}, objectName); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -190,7 +168,10 @@ func (m *Manifests) ListClusterManifestsInternal(ctx context.Context, params ope
 			fileName := filepath.Join(parts[3:]...)
 			folder := parts[2]
 			is_custom_manifest := m.isCustomManifest(ctx, params.ClusterID.String(), folder, fileName)
-			manifests = append(manifests, &models.Manifest{FileName: fileName, Folder: folder, IsCustomManifest: is_custom_manifest})
+			if is_custom_manifest == nil || *is_custom_manifest {
+				// Only return the manifest if source is unknown or if it is custom.
+				manifests = append(manifests, &models.Manifest{FileName: fileName, Folder: folder})
+			}
 		} else {
 			return nil, common.NewApiError(http.StatusInternalServerError, errors.Errorf("Cannot list file %s in cluster %s", file, params.ClusterID.String()))
 		}
@@ -216,11 +197,6 @@ func (m *Manifests) DeleteClusterManifestInternal(ctx context.Context, params op
 	_, _, path := m.getManifestPathsFromParameters(ctx, params.Folder, &params.FileName)
 
 	err = m.deleteManifest(ctx, params.ClusterID, path)
-	if err != nil {
-		return err
-	}
-
-	err = m.deleteMetadataForManifest(ctx, params.ClusterID, path)
 	if err != nil {
 		return err
 	}
@@ -283,7 +259,7 @@ func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params op
 	}
 
 	isCustomManifest := m.isCustomManifest(ctx, params.ClusterID.String(), srcFolder, srcFileName)
-	if isCustomManifest != nil {
+	if isCustomManifest != nil || *isCustomManifest {
 		err = m.createMetadataForManifest(ctx, params.ClusterID, destPath, *isCustomManifest)
 		if err != nil {
 			return nil, err
@@ -296,16 +272,10 @@ func (m *Manifests) UpdateClusterManifestInternal(ctx context.Context, params op
 		if err != nil {
 			return nil, err
 		}
-		if isCustomManifest != nil {
-			err = m.deleteMetadataForManifest(ctx, params.ClusterID, srcPath)
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	m.log.Infof("Done creating manifest %s for cluster %s", destFileName, params.ClusterID.String())
-	manifest := models.Manifest{FileName: destFileName, Folder: destFolder, IsCustomManifest: isCustomManifest}
+	manifest := models.Manifest{FileName: destFileName, Folder: destFolder}
 	return &manifest, nil
 }
 
@@ -516,6 +486,13 @@ func (m *Manifests) deleteManifest(ctx context.Context, clusterID strfmt.UUID, p
 			ctx,
 			http.StatusInternalServerError,
 			errors.Wrapf(err, "Failed to delete object %s from storage for cluster %s", objectName, clusterID))
+	}
+	err = m.deleteMetadataForManifest(ctx, clusterID, path)
+	if err != nil {
+		return m.prepareAndLogError(
+			ctx,
+			http.StatusInternalServerError,
+			errors.Wrapf(err, "Failed to manifest metadata %s from storage for cluster %s", objectName, clusterID))
 	}
 	return nil
 }

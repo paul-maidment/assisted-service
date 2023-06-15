@@ -416,41 +416,31 @@ spec:
 	})
 
 	Context("V2ListClusterManifests", func() {
-		trueValue := true
 		It("lists manifest from different folders", func() {
-			manifests := []models.Manifest{
+			expectedManifests := []models.Manifest{
 				{
 					FileName:         "file-1.yaml",
 					Folder:           validFolder,
-					IsCustomManifest: &trueValue,
 				},
 				{
 					FileName:         "file-2.yaml",
 					Folder:           validFolder,
-					IsCustomManifest: &trueValue,
-				},
-				{
-					FileName:         "file-3.yaml",
-					Folder:           defaultFolder,
-					IsCustomManifest: nil,
 				},
 			}
 
 			clusterID := registerCluster().ID
 			files := make([]string, 0)
 
-			mockUpload(len(manifests))
+			mockUpload(len(expectedManifests))
 
 			manifestMetadataPrefix := filepath.Join(clusterID.String(), "manifest-attributes")
-			for _, file := range manifests {
+			for _, file := range expectedManifests {
 				files = append(files, getObjectName(clusterID, file.Folder, file.FileName))
 				addManifestToCluster(clusterID, contentYaml, file.FileName, file.Folder)
 				if file.FileName == "file-3.yaml" {
 					mockS3Client.EXPECT().DoesObjectExist(ctx, filepath.Join(manifestMetadataPrefix, file.Folder, file.FileName, manifestSourceCustomManifest)).Return(false, nil).Times(1)
-					mockS3Client.EXPECT().DoesObjectExist(ctx, filepath.Join(manifestMetadataPrefix, file.Folder, file.FileName, manifestSourceGenerated)).Return(false, nil).Times(1)
 				} else {
 					mockS3Client.EXPECT().DoesObjectExist(ctx, filepath.Join(manifestMetadataPrefix, file.Folder, file.FileName, manifestSourceCustomManifest)).Return(true, nil).Times(1)
-					mockS3Client.EXPECT().DoesObjectExist(ctx, filepath.Join(manifestMetadataPrefix, file.Folder, file.FileName, manifestSourceGenerated)).Return(false, nil).Times(1)
 				}
 			}
 			mockListByPrefix(clusterID, files)
@@ -461,10 +451,10 @@ spec:
 			Expect(response).Should(BeAssignableToTypeOf(operations.NewV2ListClusterManifestsOK()))
 			responsePayload := response.(*operations.V2ListClusterManifestsOK)
 			Expect(responsePayload.Payload).ShouldNot(BeNil())
-			Expect(len(responsePayload.Payload)).To(Equal(len(manifests)))
+			Expect(len(responsePayload.Payload)).To(Equal(len(expectedManifests)))
 
-			for i := range manifests {
-				Expect(manifests).To(ContainElement(*responsePayload.Payload[i]))
+			for i := range expectedManifests {
+				Expect(expectedManifests).To(ContainElement(*responsePayload.Payload[i]))
 			}
 		})
 
@@ -496,7 +486,6 @@ spec:
 			clusterID := registerCluster().ID
 			mockUpload(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, "file-1.yaml", manifests.ManifestSourceCustomManifest)).Return(true, nil).AnyTimes()
-			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, "file-1.yaml", manifests.ManifestSourceGenerated)).Return(false, nil).AnyTimes()
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getObjectName(clusterID, defaultFolder, "file-1.yaml")).Return(true, nil).Times(1)
 			mockS3Client.EXPECT().DeleteObject(ctx, getObjectName(clusterID, defaultFolder, "file-1.yaml")).Return(true, nil)
 			mockS3Client.EXPECT().DeleteObject(ctx, getMetadataObjectName(clusterID, defaultFolder, "file-1.yaml", manifests.ManifestSourceCustomManifest)).Return(true, nil)
@@ -512,7 +501,6 @@ spec:
 			clusterID := registerCluster().ID
 			mockUpload(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, validFolder, "file-1.yaml", manifests.ManifestSourceCustomManifest)).Return(true, nil).AnyTimes()
-			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, validFolder, "file-1.yaml", manifests.ManifestSourceGenerated)).Return(false, nil).AnyTimes()
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getObjectName(clusterID, validFolder, "file-1.yaml")).Return(true, nil).Times(1)
 			mockS3Client.EXPECT().DeleteObject(ctx, getObjectName(clusterID, validFolder, "file-1.yaml")).Return(true, nil)
 			mockS3Client.EXPECT().DeleteObject(ctx, getMetadataObjectName(clusterID, validFolder, "file-1.yaml", manifests.ManifestSourceCustomManifest)).Return(true, nil)
@@ -613,7 +601,6 @@ spec:
 			mockS3Client.EXPECT().Download(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(reader, int64(0), nil).Times(1)
 			mockS3Client.EXPECT().Upload(ctx, []byte(contentAsYAML), getObjectName(clusterID, destFolder, destFileName)).Return(nil).Times(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceCustomManifest)).Return(true, nil).AnyTimes()
-			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceGenerated)).Return(false, nil).AnyTimes()
 			mockS3Client.EXPECT().Upload(ctx, []byte{}, getMetadataObjectName(clusterID, destFolder, destFileName, manifests.ManifestSourceCustomManifest)).Return(nil).Times(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(true, nil).Times(1)
 			mockS3Client.EXPECT().DeleteObject(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(true, nil).Times(1)
@@ -658,7 +645,6 @@ spec:
 			clusterID := registerCluster().ID
 			mockUpload(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceCustomManifest)).Return(true, nil).Times(1)
-			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceGenerated)).Return(false, nil).Times(1)
 			response := manifestsAPI.V2UpdateClusterManifest(ctx, operations.V2UpdateClusterManifestParams{
 				ClusterID: *clusterID,
 				UpdateManifestParams: &models.UpdateManifestParams{
@@ -678,7 +664,6 @@ spec:
 			clusterID := registerCluster().ID
 			mockUpload(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameJson, manifests.ManifestSourceCustomManifest)).Return(true, nil).Times(1)
-			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameJson, manifests.ManifestSourceGenerated)).Return(false, nil).Times(1)
 			response := manifestsAPI.V2UpdateClusterManifest(ctx, operations.V2UpdateClusterManifestParams{
 				ClusterID: *clusterID,
 				UpdateManifestParams: &models.UpdateManifestParams{
@@ -717,7 +702,6 @@ spec:
 			mockS3Client.EXPECT().Download(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(reader, int64(0), nil).Times(1)
 			mockS3Client.EXPECT().Upload(ctx, []byte(contentAsYAML), getObjectName(clusterID, destFolder, fileNameYaml)).Return(nil).Times(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceCustomManifest)).Return(true, nil).AnyTimes()
-			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceGenerated)).Return(false, nil).AnyTimes()
 			mockS3Client.EXPECT().Upload(ctx, []byte{}, getMetadataObjectName(clusterID, destFolder, fileNameYaml, manifests.ManifestSourceCustomManifest)).Return(nil).Times(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(true, nil).Times(1)
 			mockS3Client.EXPECT().DeleteObject(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(true, nil)
@@ -744,7 +728,6 @@ spec:
 			mockS3Client.EXPECT().Download(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(reader, int64(0), nil).Times(1)
 			mockS3Client.EXPECT().Upload(ctx, []byte(contentAsYAML), getObjectName(clusterID, defaultFolder, destFileName)).Return(nil).Times(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceCustomManifest)).Return(true, nil).AnyTimes()
-			mockS3Client.EXPECT().DoesObjectExist(ctx, getMetadataObjectName(clusterID, defaultFolder, fileNameYaml, manifests.ManifestSourceGenerated)).Return(false, nil).AnyTimes()
 			mockS3Client.EXPECT().Upload(ctx, []byte{}, getMetadataObjectName(clusterID, defaultFolder, destFileName, manifests.ManifestSourceCustomManifest)).Return(nil).Times(1)
 			mockS3Client.EXPECT().DoesObjectExist(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(true, nil).AnyTimes()
 			mockS3Client.EXPECT().DeleteObject(ctx, getObjectName(clusterID, defaultFolder, fileNameYaml)).Return(true, nil)
