@@ -371,6 +371,7 @@ spec:
           resources:
           - namespaces
           verbs:
+          - create
           - get
           - list
           - watch
@@ -621,6 +622,12 @@ spec:
         - apiGroups:
           - config.openshift.io
           resources:
+          - dnses
+          verbs:
+          - get
+        - apiGroups:
+          - config.openshift.io
+          resources:
           - infrastructures
           verbs:
           - get
@@ -755,6 +762,7 @@ spec:
           resources:
           - clusterimagesets
           verbs:
+          - create
           - get
           - list
           - watch
