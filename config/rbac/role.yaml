@@ -35,6 +35,7 @@ rules:
   - secrets
   verbs:
   - create
+  - delete
   - get
   - list
   - update
@@ -413,6 +414,8 @@ rules:
   - get
   - list
   - watch
+  - create
+  - delete
 - apiGroups:
   - metal3.io
   resources:
@@ -533,3 +536,10 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - dnses
+  verbs:
+  - get
+  - list

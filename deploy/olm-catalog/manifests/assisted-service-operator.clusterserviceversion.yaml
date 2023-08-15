@@ -755,6 +755,8 @@ spec:
           resources:
           - clusterimagesets
           verbs:
+          - create
+          - delete
           - get
           - list
           - watch

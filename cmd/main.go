@@ -63,6 +63,7 @@ import (
 	"github.com/openshift/assisted-service/pkg/generator"
 	"github.com/openshift/assisted-service/pkg/k8sclient"
 	"github.com/openshift/assisted-service/pkg/leader"
+	"github.com/openshift/assisted-service/pkg/localclusterimport"
 	logconfig "github.com/openshift/assisted-service/pkg/log"
 	"github.com/openshift/assisted-service/pkg/mirrorregistries"
 	"github.com/openshift/assisted-service/pkg/ocm"
@@ -640,6 +641,21 @@ func main() {
 			failOnError(ctrlMgr.Start(ctrl.SetupSignalHandler()), "failed to run manager")
 		}
 	}()
+
+	if Options.EnableKubeAPI && lead.IsLeader() {
+		// Splitting into API reader and writer interfaces as the reader bypasses the cache settings that are on the regular client
+		// and we need to be able to read secrets that we cannot read with the client due to how the cache is configured.
+		// The cachedApiClient can be used for writes as these are unaffected by cache.
+		apiReader := ctrlMgr.GetAPIReader()
+		cachedApiClient := ctrlMgr.GetClient()
+		localClusterImportOperations := localclusterimport.NewLocalClusterImportOperations(apiReader, cachedApiClient, log)
+		localClusterImport := localclusterimport.NewLocalClusterImport(&localClusterImportOperations, log)
+		err := localClusterImport.ImportLocalCluster()
+		if err != nil {
+			// Failure to import the local cluster is not fatal but we should warn in the log.
+			log.Warnf("Could not import local cluster into ACM due to error %s", err.Error())
+		}
+	}
 
 	// Interrupt servers on SIGINT/SIGTERM
 	stop := make(chan os.Signal, 1)
