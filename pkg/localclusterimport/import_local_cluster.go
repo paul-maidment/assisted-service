@@ -1,5 +1,6 @@
 package localclusterimport
 
+
 import (
 	"encoding/base64"
 	"errors"
@@ -22,6 +23,7 @@ type LocalClusterImport struct {
 	log                          *logrus.Logger
 }
 
+// +kubebuilder:rbac:groups=config.openshift.io,resources=dnses,verbs=get;list
 func NewLocalClusterImport(localClusterImportOperations ClusterImportOperations, log *logrus.Logger) LocalClusterImport {
 	return LocalClusterImport{clusterImportOperations: localClusterImportOperations, log: log}
 }

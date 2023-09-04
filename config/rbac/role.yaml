@@ -411,11 +411,11 @@ rules:
   resources:
   - clusterimagesets
   verbs:
+  - create
+  - delete
   - get
   - list
   - watch
-  - create
-  - delete
 - apiGroups:
   - metal3.io
   resources:
@@ -536,10 +536,3 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - config.openshift.io
-  resources:
-  - dnses
-  verbs:
-  - get
-  - list
