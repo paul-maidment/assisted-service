@@ -278,6 +278,10 @@ type AgentClusterInstallStatus struct {
 	// ValidationsInfo is a JSON-formatted string containing the validation results for each validation id grouped by category (network, hosts-data, etc.)
 	// +optional
 	ValidationsInfo common.ValidationsStatus `json:"validationsInfo,omitempty"`
+
+	// Install restarts is an integer that represents the number of times installation has been restarted.
+	// +optional
+	InstallRestarts int `json:"installRestarts,omitempty"`
 }
 
 type DebugInfo struct {

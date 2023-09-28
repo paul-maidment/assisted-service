@@ -487,6 +487,10 @@ spec:
                   type: string
                 maxItems: 2
                 type: array
+              installRestarts:
+                description: Install restarts is an integer that represents the number
+                  of times installation has been restarted.
+                type: integer
               machineNetwork:
                 description: MachineNetwork is the list of IP address pools for machines.
                 items:
