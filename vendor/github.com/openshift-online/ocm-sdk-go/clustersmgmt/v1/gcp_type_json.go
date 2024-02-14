@@ -21,7 +21,6 @@ package v1 // github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1
 
 import (
 	"io"
-	"net/http"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/openshift-online/ocm-sdk-go/helpers"
@@ -31,7 +30,10 @@ import (
 func MarshalGCP(object *GCP, writer io.Writer) error {
 	stream := helpers.NewStream(writer)
 	writeGCP(object, stream)
-	stream.Flush()
+	err := stream.Flush()
+	if err != nil {
+		return err
+	}
 	return stream.Error
 }
 
@@ -112,7 +114,16 @@ func writeGCP(object *GCP, stream *jsoniter.Stream) {
 		stream.WriteString(object.projectID)
 		count++
 	}
-	present_ = object.bitmap_&256 != 0
+	present_ = object.bitmap_&256 != 0 && object.security != nil
+	if present_ {
+		if count > 0 {
+			stream.WriteMore()
+		}
+		stream.WriteObjectField("security")
+		writeGcpSecurity(object.security, stream)
+		count++
+	}
+	present_ = object.bitmap_&512 != 0
 	if present_ {
 		if count > 0 {
 			stream.WriteMore()
@@ -121,14 +132,13 @@ func writeGCP(object *GCP, stream *jsoniter.Stream) {
 		stream.WriteString(object.tokenURI)
 		count++
 	}
-	present_ = object.bitmap_&512 != 0
+	present_ = object.bitmap_&1024 != 0
 	if present_ {
 		if count > 0 {
 			stream.WriteMore()
 		}
 		stream.WriteObjectField("type")
 		stream.WriteString(object.type_)
-		count++
 	}
 	stream.WriteObjectEnd()
 }
@@ -136,9 +146,6 @@ func writeGCP(object *GCP, stream *jsoniter.Stream) {
 // UnmarshalGCP reads a value of the 'GCP' type from the given
 // source, which can be an slice of bytes, a string or a reader.
 func UnmarshalGCP(source interface{}) (object *GCP, err error) {
-	if source == http.NoBody {
-		return
-	}
 	iterator, err := helpers.NewIterator(source)
 	if err != nil {
 		return
@@ -189,14 +196,18 @@ func readGCP(iterator *jsoniter.Iterator) *GCP {
 			value := iterator.ReadString()
 			object.projectID = value
 			object.bitmap_ |= 128
+		case "security":
+			value := readGcpSecurity(iterator)
+			object.security = value
+			object.bitmap_ |= 256
 		case "token_uri":
 			value := iterator.ReadString()
 			object.tokenURI = value
-			object.bitmap_ |= 256
+			object.bitmap_ |= 512
 		case "type":
 			value := iterator.ReadString()
 			object.type_ = value
-			object.bitmap_ |= 512
+			object.bitmap_ |= 1024
 		default:
 			iterator.ReadAny()
 		}

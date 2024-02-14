@@ -21,7 +21,6 @@ package v1 // github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1
 
 import (
 	"io"
-	"net/http"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/openshift-online/ocm-sdk-go/helpers"
@@ -31,7 +30,10 @@ import (
 func MarshalCloudProvider(object *CloudProvider, writer io.Writer) error {
 	stream := helpers.NewStream(writer)
 	writeCloudProvider(object, stream)
-	stream.Flush()
+	err := stream.Flush()
+	if err != nil {
+		return err
+	}
 	return stream.Error
 }
 
@@ -81,15 +83,20 @@ func writeCloudProvider(object *CloudProvider, stream *jsoniter.Stream) {
 		stream.WriteString(object.name)
 		count++
 	}
+	present_ = object.bitmap_&32 != 0 && object.regions != nil
+	if present_ {
+		if count > 0 {
+			stream.WriteMore()
+		}
+		stream.WriteObjectField("regions")
+		writeCloudRegionList(object.regions, stream)
+	}
 	stream.WriteObjectEnd()
 }
 
 // UnmarshalCloudProvider reads a value of the 'cloud_provider' type from the given
 // source, which can be an slice of bytes, a string or a reader.
 func UnmarshalCloudProvider(source interface{}) (object *CloudProvider, err error) {
-	if source == http.NoBody {
-		return
-	}
 	iterator, err := helpers.NewIterator(source)
 	if err != nil {
 		return
@@ -127,6 +134,10 @@ func readCloudProvider(iterator *jsoniter.Iterator) *CloudProvider {
 			value := iterator.ReadString()
 			object.name = value
 			object.bitmap_ |= 16
+		case "regions":
+			value := readCloudRegionList(iterator)
+			object.regions = value
+			object.bitmap_ |= 32
 		default:
 			iterator.ReadAny()
 		}
