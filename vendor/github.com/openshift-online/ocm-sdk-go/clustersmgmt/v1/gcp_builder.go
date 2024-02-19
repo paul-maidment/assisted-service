@@ -32,6 +32,7 @@ type GCPBuilder struct {
 	privateKey              string
 	privateKeyID            string
 	projectID               string
+	security                *GcpSecurityBuilder
 	tokenURI                string
 	type_                   string
 }
@@ -41,9 +42,12 @@ func NewGCP() *GCPBuilder {
 	return &GCPBuilder{}
 }
 
+// Empty returns true if the builder is empty, i.e. no attribute has a value.
+func (b *GCPBuilder) Empty() bool {
+	return b == nil || b.bitmap_ == 0
+}
+
 // AuthURI sets the value of the 'auth_URI' attribute to the given value.
-//
-//
 func (b *GCPBuilder) AuthURI(value string) *GCPBuilder {
 	b.authURI = value
 	b.bitmap_ |= 1
@@ -51,8 +55,6 @@ func (b *GCPBuilder) AuthURI(value string) *GCPBuilder {
 }
 
 // AuthProviderX509CertURL sets the value of the 'auth_provider_X509_cert_URL' attribute to the given value.
-//
-//
 func (b *GCPBuilder) AuthProviderX509CertURL(value string) *GCPBuilder {
 	b.authProviderX509CertURL = value
 	b.bitmap_ |= 2
@@ -60,8 +62,6 @@ func (b *GCPBuilder) AuthProviderX509CertURL(value string) *GCPBuilder {
 }
 
 // ClientID sets the value of the 'client_ID' attribute to the given value.
-//
-//
 func (b *GCPBuilder) ClientID(value string) *GCPBuilder {
 	b.clientID = value
 	b.bitmap_ |= 4
@@ -69,8 +69,6 @@ func (b *GCPBuilder) ClientID(value string) *GCPBuilder {
 }
 
 // ClientX509CertURL sets the value of the 'client_X509_cert_URL' attribute to the given value.
-//
-//
 func (b *GCPBuilder) ClientX509CertURL(value string) *GCPBuilder {
 	b.clientX509CertURL = value
 	b.bitmap_ |= 8
@@ -78,8 +76,6 @@ func (b *GCPBuilder) ClientX509CertURL(value string) *GCPBuilder {
 }
 
 // ClientEmail sets the value of the 'client_email' attribute to the given value.
-//
-//
 func (b *GCPBuilder) ClientEmail(value string) *GCPBuilder {
 	b.clientEmail = value
 	b.bitmap_ |= 16
@@ -87,8 +83,6 @@ func (b *GCPBuilder) ClientEmail(value string) *GCPBuilder {
 }
 
 // PrivateKey sets the value of the 'private_key' attribute to the given value.
-//
-//
 func (b *GCPBuilder) PrivateKey(value string) *GCPBuilder {
 	b.privateKey = value
 	b.bitmap_ |= 32
@@ -96,8 +90,6 @@ func (b *GCPBuilder) PrivateKey(value string) *GCPBuilder {
 }
 
 // PrivateKeyID sets the value of the 'private_key_ID' attribute to the given value.
-//
-//
 func (b *GCPBuilder) PrivateKeyID(value string) *GCPBuilder {
 	b.privateKeyID = value
 	b.bitmap_ |= 64
@@ -105,29 +97,36 @@ func (b *GCPBuilder) PrivateKeyID(value string) *GCPBuilder {
 }
 
 // ProjectID sets the value of the 'project_ID' attribute to the given value.
-//
-//
 func (b *GCPBuilder) ProjectID(value string) *GCPBuilder {
 	b.projectID = value
 	b.bitmap_ |= 128
 	return b
 }
 
+// Security sets the value of the 'security' attribute to the given value.
+//
+// Google cloud platform security settings of a cluster.
+func (b *GCPBuilder) Security(value *GcpSecurityBuilder) *GCPBuilder {
+	b.security = value
+	if value != nil {
+		b.bitmap_ |= 256
+	} else {
+		b.bitmap_ &^= 256
+	}
+	return b
+}
+
 // TokenURI sets the value of the 'token_URI' attribute to the given value.
-//
-//
 func (b *GCPBuilder) TokenURI(value string) *GCPBuilder {
 	b.tokenURI = value
-	b.bitmap_ |= 256
+	b.bitmap_ |= 512
 	return b
 }
 
 // Type sets the value of the 'type' attribute to the given value.
-//
-//
 func (b *GCPBuilder) Type(value string) *GCPBuilder {
 	b.type_ = value
-	b.bitmap_ |= 512
+	b.bitmap_ |= 1024
 	return b
 }
 
@@ -145,6 +144,11 @@ func (b *GCPBuilder) Copy(object *GCP) *GCPBuilder {
 	b.privateKey = object.privateKey
 	b.privateKeyID = object.privateKeyID
 	b.projectID = object.projectID
+	if object.security != nil {
+		b.security = NewGcpSecurity().Copy(object.security)
+	} else {
+		b.security = nil
+	}
 	b.tokenURI = object.tokenURI
 	b.type_ = object.type_
 	return b
@@ -162,6 +166,12 @@ func (b *GCPBuilder) Build() (object *GCP, err error) {
 	object.privateKey = b.privateKey
 	object.privateKeyID = b.privateKeyID
 	object.projectID = b.projectID
+	if b.security != nil {
+		object.security, err = b.security.Build()
+		if err != nil {
+			return
+		}
+	}
 	object.tokenURI = b.tokenURI
 	object.type_ = b.type_
 	return
