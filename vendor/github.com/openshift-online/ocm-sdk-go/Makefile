@@ -13,21 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+#
+#
+MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+PROJECT_PATH := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
+LOCAL_BIN_PATH := $(PROJECT_PATH)/bin
 
-# Enable Go modules:
-export GO111MODULE=on
-export GOPROXY=https://proxy.golang.org
+# Add the project-level bin directory into PATH. Needed in order
+# for the tasks to use project-level bin directory binaries first
+export PATH := $(LOCAL_BIN_PATH):$(PATH)
 
 # Disable CGO so that we always generate static binaries:
 export CGO_ENABLED=0
 
 # Details of the model to use:
-model_version:=v0.0.142
+model_version:=v0.0.356
 model_url:=https://github.com/openshift-online/ocm-api-model.git
 
 # Details of the metamodel to use:
-metamodel_version:=v0.0.39
-metamodel_url:=https://github.com/openshift-online/ocm-api-metamodel.git
+metamodel_version:=v0.0.59
+
+goimports_version:=v0.4.0
+
+# Additional flags to pass to the `ginkgo` command. This is used in the GitHub
+# actions environment to skip tests that are sensitive to the speed of the
+# machine: the leadership flag and retry tests.
+ginkgo_flags:=
 
 .PHONY: examples
 examples:
@@ -38,7 +49,7 @@ examples:
 
 .PHONY: test tests
 test tests:
-	ginkgo -r
+	ginkgo run -r $(ginkgo_flags)
 
 .PHONY: fmt
 fmt:
@@ -50,21 +61,26 @@ lint:
 	golangci-lint run
 
 .PHONY: generate
-generate: model metamodel
+generate: model metamodel-install goimports-install
 	rm -rf \
 		accountsmgmt \
+		addonsmgmt \
 		authorizations \
 		clustersmgmt \
-		servicelogs \
 		errors \
-		job_queue \
 		helpers \
+		jobqueue \
+		servicelogs \
+		servicemgmt \
+		statusboard \
+		webrca \
+		osdfleetmgmt \
 		openapi
-	metamodel/metamodel generate go \
+	$(METAMODEL) generate go \
 		--model=model/model \
 		--base=github.com/openshift-online/ocm-sdk-go \
 		--output=.
-	metamodel/metamodel generate openapi \
+	$(METAMODEL) generate openapi \
 		--model=model/model \
 		--output=openapi
 
@@ -81,22 +97,17 @@ model:
 	fi
 
 .PHONY: metamodel
-metamodel:
-	rm -rf "$@"
-	if [ -d "$(metamodel_url)" ]; then \
-		cp -r "$(metamodel_url)" "$@"; \
-	else \
-		git clone "$(metamodel_url)" "$@"; \
-		cd "$@"; \
-		git fetch --tags origin; \
-		git checkout -B build "$(metamodel_version)"; \
-	fi
-	make -C "$@"
+METAMODEL=$(LOCAL_BIN_PATH)/metamodel
+metamodel-install:
+	GOBIN=$(LOCAL_BIN_PATH) go install github.com/openshift-online/ocm-api-metamodel/cmd/metamodel@$(metamodel_version)
+
+.PHONY: goimports
+goimports-install:
+	@GOBIN=$(LOCAL_BIN_PATH) go install golang.org/x/tools/cmd/goimports@$(goimports_version)
 
 .PHONY: clean
 clean:
 	rm -rf \
-		.gobin \
 		metamodel \
 		model \
 		$(NULL)
