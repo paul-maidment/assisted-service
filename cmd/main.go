@@ -164,6 +164,7 @@ var Options struct {
 	BMACConfig                           controllers.BMACConfig
 	EnableLocalClusterImport             bool   `envconfig:"ENABLE_LOCAL_CLUSTER_IMPORT" default:"true"`
 	LocalClusterImportNamespace          string `envconfig:"LOCAL_CLUSTER_IMPORT_NAMESPACE" default:"local-cluster"`
+	ServiceDeploymentName                string `envconfig:"SERVICE_DEPLOYMENT_NAME" default:"assisted-service"`
 
 	// Directory containing pre-generated TLS certs/keys for the ephemeral installer
 	ClusterTLSCertOverrideDir string `envconfig:"EPHEMERAL_INSTALLER_CLUSTER_TLS_CERTS_OVERRIDE_DIR" default:""`
@@ -214,7 +215,7 @@ func importLocalCluster(ctrlMgr manager.Manager, log *logrus.Logger) {
 	// and we need to be able to read secrets that we cannot read with the client due to how the cache is configured.
 	// The cachedApiClient can be used for writes as these are unaffected by cache.
 	localClusterImportOperations := localclusterimport.NewLocalClusterImportOperations(ctrlMgr.GetAPIReader(), ctrlMgr.GetClient(), log)
-	localClusterImport := localclusterimport.NewLocalClusterImport(&localClusterImportOperations, Options.LocalClusterImportNamespace, log)
+	localClusterImport := localclusterimport.NewLocalClusterImport(&localClusterImportOperations, Options.LocalClusterImportNamespace, Options.ServiceDeploymentName, log)
 	err := localClusterImport.ImportLocalCluster()
 	if err != nil {
 		// Failure to import the local cluster is not fatal but we should warn in the log.

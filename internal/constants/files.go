@@ -19,3 +19,5 @@ const DNSWildcardFalseDomainName = "validateNoWildcardDNS"
 
 // Plain http machine config server port
 const InsecureMCSPort = 22624
+
+const SERVICE_DEPLOYMENT_NAME_ENV_VAR = "SERVICE_DEPLOYMENT_NAME"

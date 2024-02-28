@@ -20,11 +20,12 @@ import (
 type LocalClusterImport struct {
 	clusterImportOperations ClusterImportOperations
 	localClusterNamespace   string
+	serviceDeploymentName   string
 	log                     *logrus.Logger
 }
 
-func NewLocalClusterImport(localClusterImportOperations ClusterImportOperations, localClusterNamespace string, log *logrus.Logger) LocalClusterImport {
-	return LocalClusterImport{clusterImportOperations: localClusterImportOperations, log: log, localClusterNamespace: localClusterNamespace}
+func NewLocalClusterImport(localClusterImportOperations ClusterImportOperations, localClusterNamespace string, serviceDeploymentName string, log *logrus.Logger) LocalClusterImport {
+	return LocalClusterImport{clusterImportOperations: localClusterImportOperations, log: log, localClusterNamespace: localClusterNamespace, serviceDeploymentName: serviceDeploymentName}
 }
 
 func (i *LocalClusterImport) createClusterImageSet(release_image string) error {
@@ -162,13 +163,15 @@ func (i *LocalClusterImport) createClusterDeployment(pullSecret *v1.Secret, dns 
 	clusterDeployment.Namespace = i.localClusterNamespace
 	clusterDeployment.Spec.ClusterName = i.localClusterNamespace
 	clusterDeployment.Spec.BaseDomain = dns.Spec.BaseDomain
-	agentClusterInstallOwnerRef := metav1.OwnerReference{
-		Kind:       "AgentServiceConfig",
-		APIVersion: "agent-install.openshift.io/v1beta1",
-		Name:       agentServiceConfig.Name,
-		UID:        agentServiceConfig.UID,
+	blockOwnerDeletion := true
+	ownerRef := metav1.OwnerReference{
+		Kind:       "Deployment",
+		APIVersion: "apps/v1",
+		Name:       i.serviceDeploymentName,
+		BlockOwnerDeletion: &blockOwnerDeletion,
 	}
-	clusterDeployment.OwnerReferences = []metav1.OwnerReference{agentClusterInstallOwnerRef}
+	clusterDeployment.OwnerReferences = []metav1.OwnerReference{ownerRef}
+	
 	err := i.clusterImportOperations.CreateClusterDeployment(clusterDeployment)
 	if err != nil {
 		i.log.Errorf("could not create ClusterDeployment due to error %s", err.Error())

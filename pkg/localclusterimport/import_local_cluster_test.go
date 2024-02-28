@@ -36,6 +36,7 @@ var _ = Describe("ImportLocalCluster", func() {
 		agentServiceConfigUID   types.UID
 		releaseImage            string
 		localClusterNamespace   string
+		serviceDeploymentName   string
 	)
 
 	BeforeEach(func() {
@@ -43,7 +44,8 @@ var _ = Describe("ImportLocalCluster", func() {
 		clusterImportOperations = NewMockClusterImportOperations(ctrl)
 		logger = logrus.New()
 		localClusterNamespace = "some-cluster-namespace"
-		localClusterImport = NewLocalClusterImport(clusterImportOperations, localClusterNamespace, logger)
+		serviceDeploymentName = "some-service-deployment-name"
+		localClusterImport = NewLocalClusterImport(clusterImportOperations, localClusterNamespace, serviceDeploymentName, logger)
 		nodeConfigsKubeConfig = "someKubeConfig"
 		// The openshift-kube-apiserver pull-secret is double base64 encoded
 		// The first layer of encoding is transparent to us when using the client
@@ -322,11 +324,12 @@ var _ = Describe("ImportLocalCluster", func() {
 		//
 		// Adding this ownership reference to ensure we can submit clusterDeployment without ManagedClusterSet/join permission
 		//
+		blockOwnerDeletion := true
 		clusterDeployment.OwnerReferences = []metav1.OwnerReference{{
-			Kind:       "AgentServiceConfig",
-			APIVersion: "agent-install.openshift.io/v1beta1",
-			Name:       "agent",
-			UID:        agentServiceConfigUID,
+			Kind:               "Deployment",
+			APIVersion:         "apps/v1",
+			Name:               serviceDeploymentName,
+			BlockOwnerDeletion: &blockOwnerDeletion,
 		}}
 		return clusterDeployment
 	}

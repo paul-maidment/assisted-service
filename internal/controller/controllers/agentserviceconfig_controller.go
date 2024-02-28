@@ -62,6 +62,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"github.com/openshift/assisted-service/internal/constants"
 )
 
 const (
@@ -98,6 +99,7 @@ const (
 
 	osImageAdditionalParamsHeadersEnvVar     = "OS_IMAGES_REQUEST_HEADERS"
 	osImageAdditionalParamsQueryParamsEnvVar = "OS_IMAGES_REQUEST_QUERY_PARAMS"
+	serviceDeploymentNameEnvVar = "SERVICE_DEPLOYMENT_NAME"
 
 	osImageAdditionalParamsHeadersKey     = "headers"
 	osImageAdditionalParamsQueryParamsKey = "query_params"
@@ -1550,7 +1552,7 @@ func newAssistedServiceDeployment(ctx context.Context, log logrus.FieldLogger, a
 		return nil, nil, err
 	}
 
-	envSecrets := []corev1.EnvVar{
+	envVars := []corev1.EnvVar{
 		// database
 		newSecretEnvVar("DB_HOST", "db.host", databaseName),
 		newSecretEnvVar("DB_NAME", "db.name", databaseName),
@@ -1564,8 +1566,12 @@ func newAssistedServiceDeployment(ctx context.Context, log logrus.FieldLogger, a
 	}
 
 	if exposeIPXEHTTPRoute(asc.spec) {
-		envSecrets = append(envSecrets, corev1.EnvVar{Name: "HTTP_LISTEN_PORT", Value: serviceHTTPPort.String()})
+		envVars = append(envVars, corev1.EnvVar{Name: "HTTP_LISTEN_PORT", Value: serviceHTTPPort.String()})
 	}
+
+	// Ensure the service deployment name is available as an env var so that it may be used
+	// for the owner reference of the local-cluster AgentClusterInstall and ClusterDeployment CR's when the pod is running.
+	envVars = append(envVars, corev1.EnvVar{Name: constants.SERVICE_DEPLOYMENT_NAME_ENV_VAR, Value: serviceName})
 
 	envFrom := []corev1.EnvFromSource{
 		{
@@ -1614,7 +1620,7 @@ func newAssistedServiceDeployment(ctx context.Context, log logrus.FieldLogger, a
 			},
 		},
 		EnvFrom: envFrom,
-		Env:     envSecrets,
+		Env:     envVars,
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "bucket-filesystem", MountPath: "/data"},
 			{Name: "tls-certs", MountPath: "/etc/assisted-tls-config"},
