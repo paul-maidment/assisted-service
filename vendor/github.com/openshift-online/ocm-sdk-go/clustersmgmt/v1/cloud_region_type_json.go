@@ -21,7 +21,6 @@ package v1 // github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1
 
 import (
 	"io"
-	"net/http"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/openshift-online/ocm-sdk-go/helpers"
@@ -31,7 +30,10 @@ import (
 func MarshalCloudRegion(object *CloudRegion, writer io.Writer) error {
 	stream := helpers.NewStream(writer)
 	writeCloudRegion(object, stream)
-	stream.Flush()
+	err := stream.Flush()
+	if err != nil {
+		return err
+	}
 	return stream.Error
 }
 
@@ -72,7 +74,25 @@ func writeCloudRegion(object *CloudRegion, stream *jsoniter.Stream) {
 		stream.WriteBool(object.ccsOnly)
 		count++
 	}
-	present_ = object.bitmap_&16 != 0 && object.cloudProvider != nil
+	present_ = object.bitmap_&16 != 0
+	if present_ {
+		if count > 0 {
+			stream.WriteMore()
+		}
+		stream.WriteObjectField("kms_location_id")
+		stream.WriteString(object.kmsLocationID)
+		count++
+	}
+	present_ = object.bitmap_&32 != 0
+	if present_ {
+		if count > 0 {
+			stream.WriteMore()
+		}
+		stream.WriteObjectField("kms_location_name")
+		stream.WriteString(object.kmsLocationName)
+		count++
+	}
+	present_ = object.bitmap_&64 != 0 && object.cloudProvider != nil
 	if present_ {
 		if count > 0 {
 			stream.WriteMore()
@@ -81,7 +101,7 @@ func writeCloudRegion(object *CloudRegion, stream *jsoniter.Stream) {
 		writeCloudProvider(object.cloudProvider, stream)
 		count++
 	}
-	present_ = object.bitmap_&32 != 0
+	present_ = object.bitmap_&128 != 0
 	if present_ {
 		if count > 0 {
 			stream.WriteMore()
@@ -90,7 +110,7 @@ func writeCloudRegion(object *CloudRegion, stream *jsoniter.Stream) {
 		stream.WriteString(object.displayName)
 		count++
 	}
-	present_ = object.bitmap_&64 != 0
+	present_ = object.bitmap_&256 != 0
 	if present_ {
 		if count > 0 {
 			stream.WriteMore()
@@ -99,7 +119,16 @@ func writeCloudRegion(object *CloudRegion, stream *jsoniter.Stream) {
 		stream.WriteBool(object.enabled)
 		count++
 	}
-	present_ = object.bitmap_&128 != 0
+	present_ = object.bitmap_&512 != 0
+	if present_ {
+		if count > 0 {
+			stream.WriteMore()
+		}
+		stream.WriteObjectField("govcloud")
+		stream.WriteBool(object.govCloud)
+		count++
+	}
+	present_ = object.bitmap_&1024 != 0
 	if present_ {
 		if count > 0 {
 			stream.WriteMore()
@@ -108,14 +137,22 @@ func writeCloudRegion(object *CloudRegion, stream *jsoniter.Stream) {
 		stream.WriteString(object.name)
 		count++
 	}
-	present_ = object.bitmap_&256 != 0
+	present_ = object.bitmap_&2048 != 0
+	if present_ {
+		if count > 0 {
+			stream.WriteMore()
+		}
+		stream.WriteObjectField("supports_hypershift")
+		stream.WriteBool(object.supportsHypershift)
+		count++
+	}
+	present_ = object.bitmap_&4096 != 0
 	if present_ {
 		if count > 0 {
 			stream.WriteMore()
 		}
 		stream.WriteObjectField("supports_multi_az")
 		stream.WriteBool(object.supportsMultiAZ)
-		count++
 	}
 	stream.WriteObjectEnd()
 }
@@ -123,9 +160,6 @@ func writeCloudRegion(object *CloudRegion, stream *jsoniter.Stream) {
 // UnmarshalCloudRegion reads a value of the 'cloud_region' type from the given
 // source, which can be an slice of bytes, a string or a reader.
 func UnmarshalCloudRegion(source interface{}) (object *CloudRegion, err error) {
-	if source == http.NoBody {
-		return
-	}
 	iterator, err := helpers.NewIterator(source)
 	if err != nil {
 		return
@@ -159,26 +193,42 @@ func readCloudRegion(iterator *jsoniter.Iterator) *CloudRegion {
 			value := iterator.ReadBool()
 			object.ccsOnly = value
 			object.bitmap_ |= 8
+		case "kms_location_id":
+			value := iterator.ReadString()
+			object.kmsLocationID = value
+			object.bitmap_ |= 16
+		case "kms_location_name":
+			value := iterator.ReadString()
+			object.kmsLocationName = value
+			object.bitmap_ |= 32
 		case "cloud_provider":
 			value := readCloudProvider(iterator)
 			object.cloudProvider = value
-			object.bitmap_ |= 16
+			object.bitmap_ |= 64
 		case "display_name":
 			value := iterator.ReadString()
 			object.displayName = value
-			object.bitmap_ |= 32
+			object.bitmap_ |= 128
 		case "enabled":
 			value := iterator.ReadBool()
 			object.enabled = value
-			object.bitmap_ |= 64
+			object.bitmap_ |= 256
+		case "govcloud":
+			value := iterator.ReadBool()
+			object.govCloud = value
+			object.bitmap_ |= 512
 		case "name":
 			value := iterator.ReadString()
 			object.name = value
-			object.bitmap_ |= 128
+			object.bitmap_ |= 1024
+		case "supports_hypershift":
+			value := iterator.ReadBool()
+			object.supportsHypershift = value
+			object.bitmap_ |= 2048
 		case "supports_multi_az":
 			value := iterator.ReadBool()
 			object.supportsMultiAZ = value
-			object.bitmap_ |= 256
+			object.bitmap_ |= 4096
 		default:
 			iterator.ReadAny()
 		}

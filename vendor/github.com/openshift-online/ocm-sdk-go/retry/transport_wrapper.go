@@ -22,7 +22,7 @@ package retry
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"strings"
 
@@ -197,7 +197,7 @@ func (t *roundTripper) RoundTrip(request *http.Request) (response *http.Response
 	}()
 	var bodyCopy []byte
 	if originalBody != nil {
-		bodyCopy, err = ioutil.ReadAll(originalBody)
+		bodyCopy, err = io.ReadAll(originalBody)
 		if err != nil {
 			return
 		}
@@ -213,7 +213,7 @@ func (t *roundTripper) RoundTrip(request *http.Request) (response *http.Response
 
 		// Each time that we retry the request we need to rewind the request body:
 		if bodyCopy != nil {
-			request.Body = ioutil.NopCloser(bytes.NewBuffer(bodyCopy))
+			request.Body = io.NopCloser(bytes.NewBuffer(bodyCopy))
 		}
 
 		// Do an attempt, and return inmediately if this is the last one:
@@ -251,6 +251,14 @@ func (t *roundTripper) RoundTrip(request *http.Request) (response *http.Response
 					request.Method, request.URL, err,
 				)
 				continue
+			case strings.Contains(message, "REFUSED_STREAM"):
+				t.logger.Warn(
+					ctx,
+					"Request for method %s and URL '%s' failed with refused stream, "+
+						"will try again: %v",
+					request.Method, request.URL, err,
+				)
+				continue
 			default:
 				// For any other error we just report it to the caller:
 				err = fmt.Errorf("can't send request: %w", err)
@@ -271,6 +279,14 @@ func (t *roundTripper) RoundTrip(request *http.Request) (response *http.Response
 					"will try again",
 				request.Method, request.URL, code,
 			)
+			err = response.Body.Close()
+			if err != nil {
+				t.logger.Error(
+					ctx,
+					"Failed to close response body for method '%s' and URL '%s'",
+					request.Method, request.URL,
+				)
+			}
 			continue
 		case code >= 500 && method == http.MethodGet:
 			// For any other 5xx status code we can't be sure if the server processed
@@ -282,6 +298,14 @@ func (t *roundTripper) RoundTrip(request *http.Request) (response *http.Response
 					"will try again",
 				request.Method, request.URL, code,
 			)
+			err = response.Body.Close()
+			if err != nil {
+				t.logger.Error(
+					ctx,
+					"Failed to close response body for method '%s' and URL '%s'",
+					request.Method, request.URL,
+				)
+			}
 			continue
 		default:
 			// For any other status code we can't be sure if the server processed the

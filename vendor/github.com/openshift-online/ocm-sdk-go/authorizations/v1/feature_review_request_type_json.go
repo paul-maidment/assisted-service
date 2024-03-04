@@ -21,7 +21,6 @@ package v1 // github.com/openshift-online/ocm-sdk-go/authorizations/v1
 
 import (
 	"io"
-	"net/http"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/openshift-online/ocm-sdk-go/helpers"
@@ -31,7 +30,10 @@ import (
 func MarshalFeatureReviewRequest(object *FeatureReviewRequest, writer io.Writer) error {
 	stream := helpers.NewStream(writer)
 	writeFeatureReviewRequest(object, stream)
-	stream.Flush()
+	err := stream.Flush()
+	if err != nil {
+		return err
+	}
 	return stream.Error
 }
 
@@ -58,15 +60,20 @@ func writeFeatureReviewRequest(object *FeatureReviewRequest, stream *jsoniter.St
 		stream.WriteString(object.feature)
 		count++
 	}
+	present_ = object.bitmap_&4 != 0
+	if present_ {
+		if count > 0 {
+			stream.WriteMore()
+		}
+		stream.WriteObjectField("organization_id")
+		stream.WriteString(object.organizationId)
+	}
 	stream.WriteObjectEnd()
 }
 
 // UnmarshalFeatureReviewRequest reads a value of the 'feature_review_request' type from the given
 // source, which can be an slice of bytes, a string or a reader.
 func UnmarshalFeatureReviewRequest(source interface{}) (object *FeatureReviewRequest, err error) {
-	if source == http.NoBody {
-		return
-	}
 	iterator, err := helpers.NewIterator(source)
 	if err != nil {
 		return
@@ -93,6 +100,10 @@ func readFeatureReviewRequest(iterator *jsoniter.Iterator) *FeatureReviewRequest
 			value := iterator.ReadString()
 			object.feature = value
 			object.bitmap_ |= 2
+		case "organization_id":
+			value := iterator.ReadString()
+			object.organizationId = value
+			object.bitmap_ |= 4
 		default:
 			iterator.ReadAny()
 		}
