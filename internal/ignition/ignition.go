@@ -516,7 +516,7 @@ func (g *installerGenerator) applyManifestPatches(ctx context.Context) error {
 		// We allow files that have the following extension .y(a)ml.patch(_something).
 		// This allows to pushing multuple patches for the same Manifest.
 		extension := filepath.Ext(info.Name())
-		if !strings.HasPrefix(extension, ".patch") {
+		if !strings.Contains(extension, ".patch") {
 			return nil
 		}
 
