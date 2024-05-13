@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	v1 "k8s.io/api/core/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -219,7 +220,12 @@ var _ = Describe("Reconcile", func() {
 				},
 			},
 		}
-		reconciler = newLocalClusterImportTestReconciler(scheme, managedCluster, agentServiceConfig, node1, node2, node3, proxy, dns, kubeConfigSecret, clusterVersion, machineApiPullSecret)
+		namespace := &v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "local-cluster",
+			},
+		}
+		reconciler = newLocalClusterImportTestReconciler(scheme, managedCluster, agentServiceConfig, node1, node2, node3, proxy, dns, kubeConfigSecret, clusterVersion, machineApiPullSecret, namespace)
 		client = reconciler.client
 	})
 
