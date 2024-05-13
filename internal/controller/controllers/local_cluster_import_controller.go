@@ -11,8 +11,11 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/hive/apis/hive/v1/agent"
 	"github.com/pkg/errors"
+	pkgerror "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/thoas/go-funk"
 	v1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,6 +44,21 @@ type LocalClusterImportReconciler struct {
 	localClusterName       string
 	log                    *logrus.Logger
 	agentServiceConfigName string
+}
+
+func (r *LocalClusterImportReconciler) hasManagedClusterCRD(ctx context.Context) (bool, error) {
+	crds := &apiextensionsv1.CustomResourceDefinitionList{}
+	if err := r.client.List(ctx, crds); err != nil {
+		return false, pkgerror.Wrap(err, "Failed to list CRDs")
+	}
+	for _, item := range crds.Items {
+		if funk.IsType(apiextensionsv1.CustomResourceDefinition{}, item) {
+			if item.Spec.Group == clusterv1.GroupName && item.Spec.Group == "ManagedCluster" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func NewLocalClusterImportReconciler(client client.Client, localClusterName string, agentServiceConfigName string, log *logrus.Logger) *LocalClusterImportReconciler {
@@ -81,6 +99,16 @@ func (r *LocalClusterImportReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}()
 
 	r.log.Info("AgentServiceConfig (LocalClusterImport) Reconcile started")
+
+	hasManagedClusterCRD, err := r.hasManagedClusterCRD(ctx)
+	if err != nil {
+		r.log.WithError(err).Error("Unabled to determine managed cluster CRD status")
+		return ctrl.Result{}, err
+	}
+	if !hasManagedClusterCRD {
+		r.log.Info("No ManagedCluster CRD found, assisted-service is assumed to be running without ACM. LocalClusterImport Controller will not reconcile further.")
+		return ctrl.Result{}, nil
+	}
 
 	instance := &aiv1beta1.AgentServiceConfig{}
 
