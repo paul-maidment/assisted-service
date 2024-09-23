@@ -188,7 +188,7 @@ func checkIsLocalManagedCluster(obj metav1.Object) bool {
 	return strings.ToLower(value) == "true" && ok
 }
 
-func checkSecretName(obj metav1.Object) bool {
+func CheckSecretName(obj metav1.Object) bool {
 	return obj.GetNamespace() == hubKubeConfigNamespace && obj.GetName() == hubKubeConfigName || obj.GetNamespace() == hubPullSecretNamespace && obj.GetName() == hubPullSecretName
 }
 
@@ -201,10 +201,10 @@ func (r *LocalClusterImportReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		GenericFunc: func(e event.GenericEvent) bool { return checkIsLocalManagedCluster(e.Object) },
 	})
 	secretPredicates := builder.WithPredicates(predicate.Funcs{
-		CreateFunc:  func(e event.CreateEvent) bool { return checkSecretName(e.Object) },
-		UpdateFunc:  func(e event.UpdateEvent) bool { return checkSecretName(e.ObjectNew) },
-		DeleteFunc:  func(e event.DeleteEvent) bool { return checkSecretName(e.Object) },
-		GenericFunc: func(e event.GenericEvent) bool { return checkSecretName(e.Object) },
+		CreateFunc:  func(e event.CreateEvent) bool { return CheckSecretName(e.Object) },
+		UpdateFunc:  func(e event.UpdateEvent) bool { return CheckSecretName(e.ObjectNew) },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return CheckSecretName(e.Object) },
+		GenericFunc: func(e event.GenericEvent) bool { return CheckSecretName(e.Object) },
 	})
 	enqueRequestForAgentServiceConfig := handler.EnqueueRequestsFromMapFunc(
 		func(_ context.Context, _ client.Object) []reconcile.Request {

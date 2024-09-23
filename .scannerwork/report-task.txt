@@ -1,0 +1,6 @@
+projectKey=paul-maidment_assisted-service_fa4072c2-7d39-41f5-8464-647ae7dc9918
+serverUrl=http://localhost:9000
+serverVersion=10.6.0.92116
+dashboardUrl=http://localhost:9000/dashboard?id=paul-maidment_assisted-service_fa4072c2-7d39-41f5-8464-647ae7dc9918
+ceTaskId=f0cd39d8-81b0-4e55-aac4-d0bda98328e6
+ceTaskUrl=http://localhost:9000/api/ce/task?id=f0cd39d8-81b0-4e55-aac4-d0bda98328e6
