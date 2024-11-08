@@ -1,4 +1,4 @@
-FROM golang:1.15.1
+FROM golang:1.22.8
 
 WORKDIR /gormigrate
 COPY . .
