@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -236,6 +237,85 @@ var _ = Describe("installer cache", func() {
 		Expect(l.Path).ShouldNot(BeEmpty())
 		expectEventSent()
 		l.Cleanup(ctx)
+	})
+
+	Context("parallel behavior", func() {
+
+		mockReleaseCalls := func(releaseID string, version string) {
+			workdir := filepath.Join(cacheDir, "quay.io", "release-dev")
+			fname := filepath.Join(workdir, releaseID)
+
+			mockRelease.EXPECT().GetReleaseBinaryPath(
+				gomock.Any(), gomock.Any(), version).
+				Return(workdir, releaseID, fname, nil).AnyTimes()
+
+			mockRelease.EXPECT().Extract(gomock.Any(), releaseID,
+				gomock.Any(), cacheDir, gomock.Any(), version).
+				DoAndReturn(func(log logrus.FieldLogger, releaseImage string, releaseImageMirror string, cacheDir string, pullSecret string, version string) (string, error) {
+					err := os.WriteFile(fname, []byte("abcde"), 0600)
+					time.Sleep(100 * time.Millisecond) // Add a small amount of latency for file extraction
+					return "", err
+				})
+		}
+
+		type launchParams struct {
+			releaseID string
+			version   string
+			clusterID strfmt.UUID
+		}
+
+		launchParallel := func(params []launchParams) (*sync.WaitGroup, chan error) {	
+			errorChannel := make(chan error)
+			var wg sync.WaitGroup
+			for _, param := range params {
+				mockReleaseCalls(param.releaseID, param.version)
+				wg.Add(1)
+				go func(errorChannel chan error) {
+					defer wg.Done()
+					_, err := manager.Get(ctx, param.releaseID, "mirror", "pull-secret", mockRelease, param.version, param.clusterID)
+					if err != nil {
+						errorChannel <- err
+					}
+				}(errorChannel)
+			}
+			return &wg, errorChannel
+		}
+
+		assertNoErrors := func(wg *sync.WaitGroup, errorChannel chan error) {
+			wg.Wait()
+			close(errorChannel)
+			var errors []error
+			for e := range errorChannel {
+				errors = append(errors, e)
+			}
+			Expect(errors).To(BeEmpty())
+		}
+
+		It("should correctly handle multiple requests for the same release at the same time", func() {
+			params := []launchParams{}
+			for i:=0; i<10; i++ {
+				params = append(params, launchParams{releaseID: "4.17.11-x86_64", version: "4.17.11", clusterID:strfmt.UUID(uuid.NewString())})
+			}
+			wg, errorChannel := launchParallel(params)
+			assertNoErrors(wg, errorChannel)
+		})
+
+		FIt("should correctly handle multiple requests for different releases at the same time", func() {
+			params := []launchParams{}
+			for i:=0; i<10; i++ {
+				params = append(params, launchParams{releaseID: "4.17.11-x86_64", version: "4.17.11", clusterID:strfmt.UUID(uuid.NewString())})
+				params = append(params, launchParams{releaseID: "4.18.11-x86_64", version: "4.18.11", clusterID:strfmt.UUID(uuid.NewString())})
+				params = append(params, launchParams{releaseID: "4.19.11-x86_64", version: "4.19.11", clusterID:strfmt.UUID(uuid.NewString())})
+				params = append(params, launchParams{releaseID: "4.20.11-x86_64", version: "4.20.11", clusterID:strfmt.UUID(uuid.NewString())})
+				params = append(params, launchParams{releaseID: "4.21.11-x86_64", version: "4.21.11", clusterID:strfmt.UUID(uuid.NewString())})
+			}
+			wg, errorChannel := launchParallel(params)
+			assertNoErrors(wg, errorChannel)
+		})
+
+		It("should function correctly with minimal storage limit", func() {
+
+		})
 	})
 })
 
