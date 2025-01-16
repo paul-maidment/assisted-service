@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	config_latest_types "github.com/coreos/ignition/v2/config/v3_2/types"
 	"github.com/go-openapi/strfmt"
@@ -85,7 +86,6 @@ type installerGenerator struct {
 	cluster                       *common.Cluster
 	releaseImage                  string
 	releaseImageMirror            string
-	installerDir                  string
 	serviceCACert                 string
 	encodedDhcpFileContents       string
 	s3Client                      s3wrapper.API
@@ -94,9 +94,11 @@ type installerGenerator struct {
 	providerRegistry              registry.ProviderRegistry
 	installerReleaseImageOverride string
 	clusterTLSCertOverrideDir     string
-	installerCache                *installercache.Installers
+	installerCache                installercache.InstallerCache
 	nodeIpAllocations             map[strfmt.UUID]*network.NodeIpAllocation
 	manifestApi                   manifestsapi.ManifestsAPI
+	releaseRetryMax               int
+	releaseRetryInterval          time.Duration
 }
 
 var fileNames = [...]string{
@@ -110,16 +112,15 @@ var fileNames = [...]string{
 }
 
 // NewGenerator returns a generator that can generate ignition files
-func NewGenerator(workDir string, installerDir string, cluster *common.Cluster, releaseImage string, releaseImageMirror string,
+func NewGenerator(workDir string, cluster *common.Cluster, releaseImage string, releaseImageMirror string,
 	serviceCACert string, installInvoker string, s3Client s3wrapper.API, log logrus.FieldLogger, providerRegistry registry.ProviderRegistry,
-	installerReleaseImageOverride, clusterTLSCertOverrideDir string, storageCapacityLimit int64, manifestApi manifestsapi.ManifestsAPI, eventsHandler eventsapi.Handler) Generator {
+	installerReleaseImageOverride, clusterTLSCertOverrideDir string, manifestApi manifestsapi.ManifestsAPI, eventsHandler eventsapi.Handler, installerCache installercache.InstallerCache, releaseRetryMax int, releaseRetryInterval time.Duration) Generator {
 	return &installerGenerator{
 		cluster:                       cluster,
 		log:                           log,
 		releaseImage:                  releaseImage,
 		releaseImageMirror:            releaseImageMirror,
 		workDir:                       workDir,
-		installerDir:                  installerDir,
 		serviceCACert:                 serviceCACert,
 		s3Client:                      s3Client,
 		enableMetal3Provisioning:      true,
@@ -127,8 +128,10 @@ func NewGenerator(workDir string, installerDir string, cluster *common.Cluster, 
 		providerRegistry:              providerRegistry,
 		installerReleaseImageOverride: installerReleaseImageOverride,
 		clusterTLSCertOverrideDir:     clusterTLSCertOverrideDir,
-		installerCache:                installercache.New(installerDir, storageCapacityLimit, eventsHandler, log),
+		installerCache:                installerCache,
 		manifestApi:                   manifestApi,
+		releaseRetryMax:               releaseRetryMax,
+		releaseRetryInterval:          releaseRetryInterval,
 	}
 }
 
@@ -147,6 +150,34 @@ func (g *installerGenerator) allocateNodeIpsIfNeeded(log logrus.FieldLogger) {
 			g.nodeIpAllocations = nodeIpAllocations
 		}
 	}
+}
+
+func (g *installerGenerator) retryGetRelease(ctx context.Context, releaseID string, ocRelease oc.Release) (*installercache.Release, error) {
+	retries := 0
+	var err error
+	var release *installercache.Release
+	for {
+		release, err = g.installerCache.Get(ctx, g.installerReleaseImageOverride, g.releaseImageMirror,
+			g.cluster.PullSecret, ocRelease, g.cluster.OpenshiftVersion, *g.cluster.ID)
+
+		if err != nil {
+			_, isCapacityError := err.(*installercache.ErrorInsufficientCacheCapacity)
+			if !isCapacityError {
+				return nil, errors.Wrapf(err, "failed to get installer path for release %s", releaseID)
+			}
+			if retries >= g.releaseRetryMax {
+				return nil, errors.Wrapf(err, "failed to get installer path after %d retries for release %s", g.releaseRetryMax, releaseID)
+			}
+			g.log.WithError(err).Errorf("attempt to fetch release failed due to insufficient installer cache capacity for release %s- retrying", g.installerReleaseImageOverride)
+			retries++
+			// Back off for a short interval before attempting another retry
+			time.Sleep(g.releaseRetryInterval)
+			continue
+		}
+		// If we reach here, we have a release
+		break
+	}
+	return release, nil
 }
 
 // Generate generates ignition files and applies modifications.
@@ -174,11 +205,11 @@ func (g *installerGenerator) Generate(ctx context.Context, installConfig []byte)
 		system.NewLocalSystemInfo(),
 	)
 
-	release, err := g.installerCache.Get(ctx, g.installerReleaseImageOverride, g.releaseImageMirror,
-		g.cluster.PullSecret, ocRelease, g.cluster.OpenshiftVersion, *g.cluster.ID)
+	release, err := g.retryGetRelease(ctx, g.installerReleaseImageOverride, ocRelease)
 	if err != nil {
-		return errors.Wrap(err, "failed to get installer path")
+		return err
 	}
+
 	//cleanup resources at the end
 	defer release.Cleanup(ctx)
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/NYTimes/gziphandler"
+	"github.com/alecthomas/units"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
@@ -39,6 +40,7 @@ import (
 	"github.com/openshift/assisted-service/internal/ignition"
 	"github.com/openshift/assisted-service/internal/infraenv"
 	installcfg "github.com/openshift/assisted-service/internal/installcfg/builder"
+	"github.com/openshift/assisted-service/internal/installercache"
 	internaljson "github.com/openshift/assisted-service/internal/json"
 	"github.com/openshift/assisted-service/internal/manifests"
 	"github.com/openshift/assisted-service/internal/metrics"
@@ -172,6 +174,18 @@ var Options struct {
 
 	// EnableXattrFallback is a boolean flag to enable en emulated fallback methoid of xattr on systems that do not support xattr.
 	EnableXattrFallback bool `envconfig:"ENABLE_XATTR_FALLBACK" default:"true"`
+
+	// InstallerCacheCapacity is the capacity of the installer cache in GiB
+	InstallerCacheCapacityGiB uint `envconfig:"INSTALLER_CACHE_CAPACITY_GIB"`
+
+	// InstallerCacheMaxReleaseSize is the expected maximum size of a single release in GiB
+	InstallerCacheMaxReleaseSizeGiB uint `envconfig:"INSTALLER_CACHE_MAX_RELEASE_SIZE_GIB" default:"2"`
+
+	// InstallerCacheFetchRetryMax is a count of the number of retries that should be attempted when there is not enough storage to fetch a release.
+	InstallerCacheFetchRetryMax int `envconfig:"INSTALLER_CACHE_MAX_FETCH_RETRIES" default:"100"`
+
+	//InstallerCacheFetchRetryIntervalSeconds is the number of seconds to wait before attempting another fetch.
+	InstallerCacheFetchRetryIntervalSeconds int `envconfig:"INSTALLER_CACHE_FETCH_RETRY_INTERVAL" default:"10"`
 }
 
 func InitLogs(logLevel, logFormat string) *logrus.Logger {
@@ -488,7 +502,14 @@ func main() {
 	failOnError(err, "failed to create valid bm config S3 endpoint URL from %s", Options.BMConfig.S3EndpointURL)
 	Options.BMConfig.S3EndpointURL = newUrl
 
-	generator := generator.New(log, objectHandler, Options.GeneratorConfig, Options.WorkDir, providerRegistry, manifestsApi, eventsHandler)
+	installGeneratorWorkDir := filepath.Join(Options.WorkDir, "install-config-generate")
+	installerCacheDir := filepath.Join(installGeneratorWorkDir, "installercache")
+	installerCacheCapacity := int64(Options.InstallerCacheCapacityGiB) * int64(units.GiB)
+	installerCacheReleaseSize := int64(Options.InstallerCacheMaxReleaseSizeGiB) * int64(units.GiB)
+	installerCache, err := installercache.New(installerCacheDir, installerCacheCapacity, installerCacheReleaseSize, eventsHandler, log, metrics.NewOSDiskStatsHelper())
+	failOnError(err, "failed to instantiate installercache")
+	generator := generator.New(log, objectHandler, Options.GeneratorConfig, Options.WorkDir, providerRegistry, manifestsApi, eventsHandler, installGeneratorWorkDir,
+		installerCache, Options.InstallerCacheFetchRetryMax, time.Duration(Options.InstallerCacheFetchRetryIntervalSeconds)*time.Second)
 	var crdUtils bminventory.CRDUtils
 	if ctrlMgr != nil {
 		crdUtils = controllers.NewCRDUtils(ctrlMgr.GetClient(), hostApi)

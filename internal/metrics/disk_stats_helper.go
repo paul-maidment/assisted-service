@@ -28,6 +28,14 @@ func (c *OSDiskStatsHelper) getUsedBytesInDirectory(directory string) (uint64, e
 	seenInodes := make(map[uint64]bool)
 	err := filepath.Walk(directory, func(path string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
+			if _, ok := err.(*os.PathError); ok {
+				// TODO: Add a log here
+				// it's possible to encounter a path error if a file has been deleted since we obtained the file list
+				// in cases where deletion occurs outside of Mutex protection, such as when we clean up an installercache.Release, this can be expected
+				// we can safely count this as 'zero sized' in these cases
+				// return nil to ignore the error.
+				return nil
+			}
 			return err
 		}
 		// We need to ensure that the size check is based on inodes and not just the sizes gleaned from files.
