@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/NYTimes/gziphandler"
+	"github.com/alecthomas/units"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
@@ -39,6 +40,7 @@ import (
 	"github.com/openshift/assisted-service/internal/ignition"
 	"github.com/openshift/assisted-service/internal/infraenv"
 	installcfg "github.com/openshift/assisted-service/internal/installcfg/builder"
+	"github.com/openshift/assisted-service/internal/installercache"
 	internaljson "github.com/openshift/assisted-service/internal/json"
 	"github.com/openshift/assisted-service/internal/manifests"
 	"github.com/openshift/assisted-service/internal/metrics"
@@ -172,6 +174,18 @@ var Options struct {
 
 	// EnableXattrFallback is a boolean flag to enable en emulated fallback methoid of xattr on systems that do not support xattr.
 	EnableXattrFallback bool `envconfig:"ENABLE_XATTR_FALLBACK" default:"true"`
+
+	// InstallerCacheCapacityGiB is the capacity of the installer cache in GiB
+	InstallerCacheCapacityGiB uint `envconfig:"INSTALLER_CACHE_CAPACITY_GIB" default:"0"`
+
+	// InstallerCacheMaxReleaseSizeGiB is the expected maximum size of a single release in GiB
+	InstallerCacheMaxReleaseSizeGiB uint `envconfig:"INSTALLER_CACHE_MAX_RELEASE_SIZE_GIB" default:"2"`
+
+	// InstallerCacheEvictionThresholdPercent is the percentage of capacity at which the cache will start to evict releases.
+	InstallerCacheEvictionThresholdPercent uint `envconfig:"INSTALLER_CACHE_EVICTION_THRESHOLD_PERCENT" default:"80"`
+
+	// ReleaseFetchRetryIntervalSeconds is the number of seconds that the cache should wait before retrying the fetch of a release if unable to do so for capacity reasons.
+	ReleaseFetchRetryIntervalSeconds uint `envconfig:"INSTALLER_CACHE_RELEASE_FETCH_RETRY_INTERVAL_SECONDS" default:"30"`
 }
 
 func InitLogs(logLevel, logFormat string) *logrus.Logger {
@@ -315,7 +329,8 @@ func main() {
 	metricsManagerConfig := &metrics.MetricsManagerConfig{
 		DirectoryUsageMonitorConfig: metrics.DirectoryUsageMonitorConfig{
 			Directories: []string{Options.WorkDir}}}
-	metricsManager := metrics.NewMetricsManager(prometheusRegistry, eventsHandler, metrics.NewOSDiskStatsHelper(), metricsManagerConfig, log)
+	diskStatsHelper := metrics.NewOSDiskStatsHelper(logrus.New())
+	metricsManager := metrics.NewMetricsManager(prometheusRegistry, eventsHandler, diskStatsHelper, metricsManagerConfig, log)
 	if ocmClient != nil {
 		//inject the metric server to the ocm client for purpose of
 		//performance monitoring the calls to ACM. This could not be done
@@ -488,7 +503,18 @@ func main() {
 	failOnError(err, "failed to create valid bm config S3 endpoint URL from %s", Options.BMConfig.S3EndpointURL)
 	Options.BMConfig.S3EndpointURL = newUrl
 
-	generator := generator.New(log, objectHandler, Options.GeneratorConfig, Options.WorkDir, providerRegistry, manifestsApi, eventsHandler)
+	installGeneratorDirectoryConfig := generator.InstallGeneratorDirectoryConfig{WorkDir: Options.WorkDir}
+	installerCacheConfig := installercache.InstallerCacheConfig{
+		CacheDir:                        filepath.Join(installGeneratorDirectoryConfig.GetWorkingDirectory(), "installercache"),
+		MaxCapacity:                     int64(Options.InstallerCacheCapacityGiB) * int64(units.GiB),
+		MaxReleaseSize:                  int64(Options.InstallerCacheMaxReleaseSizeGiB) * int64(units.GiB),
+		ReleaseFetchRetryInterval:       time.Duration(Options.ReleaseFetchRetryIntervalSeconds) * time.Second,
+		InstallerCacheEvictionThreshold: float64(Options.InstallerCacheEvictionThresholdPercent) / 100,
+	}
+	installerCache, err := installercache.New(installerCacheConfig, eventsHandler, diskStatsHelper, log)
+	failOnError(err, "failed to instantiate installercache")
+
+	generator := generator.New(installGeneratorDirectoryConfig, log, objectHandler, Options.GeneratorConfig, providerRegistry, manifestsApi, eventsHandler, installerCache)
 	var crdUtils bminventory.CRDUtils
 	if ctrlMgr != nil {
 		crdUtils = controllers.NewCRDUtils(ctrlMgr.GetClient(), hostApi)

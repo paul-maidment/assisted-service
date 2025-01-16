@@ -8,10 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"github.com/google/uuid"
 	eventsapi "github.com/openshift/assisted-service/internal/events/api"
+	"github.com/openshift/assisted-service/internal/metrics"
 	"github.com/openshift/assisted-service/internal/oc"
 	"github.com/openshift/assisted-service/models"
 	"github.com/pkg/errors"
@@ -19,8 +22,7 @@ import (
 )
 
 var (
-	DeleteGracePeriod   time.Duration = -5 * time.Minute
-	CacheLimitThreshold               = 0.8
+	linkPruningGracePeriod time.Duration = 5 * time.Minute
 )
 
 // Installers implements a thread safe LRU cache for ocp install binaries
@@ -29,11 +31,26 @@ var (
 type Installers struct {
 	sync.Mutex
 	log logrus.FieldLogger
-	// total capcity of the allowed storage (in bytes)
-	storageCapacity int64
 	// parent directory of the binary cache
-	cacheDir      string
-	eventsHandler eventsapi.Handler
+	eventsHandler   eventsapi.Handler
+	diskStatsHelper metrics.DiskStatsHelper
+	config          InstallerCacheConfig
+}
+
+type InstallerCacheConfig struct {
+	CacheDir                        string
+	MaxCapacity                     int64
+	MaxReleaseSize                  int64
+	ReleaseFetchRetryInterval       time.Duration
+	InstallerCacheEvictionThreshold float64
+}
+
+type errorInsufficientCacheCapacity struct {
+	Message string
+}
+
+func (e *errorInsufficientCacheCapacity) Error() string {
+	return e.Message
 }
 
 type fileInfo struct {
@@ -43,7 +60,8 @@ type fileInfo struct {
 
 func (fi *fileInfo) Compare(other *fileInfo) bool {
 	//oldest file will be first in queue
-	return fi.info.ModTime().Unix() < other.info.ModTime().Unix()
+	// Using micoseconds to make sure that the comparison is granular enough
+	return fi.info.ModTime().UnixMicro() < other.info.ModTime().UnixMicro()
 }
 
 const (
@@ -65,11 +83,9 @@ type Release struct {
 	extractDuration float64
 }
 
-// Cleanup is called to signal that the caller has finished using the relase and that resources may be released.
+// Cleanup is called to signal that the caller has finished using the release and that resources may be released.
 func (rl *Release) Cleanup(ctx context.Context) {
-	if err := os.Remove(rl.Path); err != nil {
-		logrus.New().WithError(err).Errorf("Failed to delete release link %s", rl.Path)
-	}
+	logrus.New().Infof("Cleaning up release %s", rl.Path)
 	rl.eventsHandler.V2AddMetricsEvent(
 		ctx, &rl.clusterID, nil, nil, "", models.EventSeverityInfo,
 		metricEventInstallerCacheRelease,
@@ -80,22 +96,54 @@ func (rl *Release) Cleanup(ctx context.Context) {
 		"cached", rl.cached,
 		"extract_duration", rl.extractDuration,
 	)
+	if err := os.Remove(rl.Path); err != nil {
+		logrus.New().WithError(err).Errorf("Failed to delete release link %s", rl.Path)
+	}
 }
 
 // New constructs an installer cache with a given storage capacity
-func New(cacheDir string, storageCapacity int64, eventsHandler eventsapi.Handler, log logrus.FieldLogger) *Installers {
+func New(config InstallerCacheConfig, eventsHandler eventsapi.Handler, diskStatsHelper metrics.DiskStatsHelper, log logrus.FieldLogger) (*Installers, error) {
+	if config.InstallerCacheEvictionThreshold == 0 {
+		return nil, errors.New("config.InstallerCacheEvictionThreshold must not be zero")
+	}
+	if config.MaxCapacity > 0 && config.MaxReleaseSize == 0 {
+		return nil, fmt.Errorf("config.MaxReleaseSize (%d bytes) must not be zero", config.MaxReleaseSize)
+	}
+	if config.MaxCapacity > 0 && config.MaxReleaseSize > config.MaxCapacity {
+		return nil, fmt.Errorf("config.MaxReleaseSize (%d bytes) must not be greater than config.MaxCapacity (%d bytes)", config.MaxReleaseSize, config.MaxCapacity)
+	}
 	return &Installers{
 		log:             log,
-		storageCapacity: storageCapacity,
-		cacheDir:        cacheDir,
 		eventsHandler:   eventsHandler,
-	}
+		diskStatsHelper: diskStatsHelper,
+		config:          config,
+	}, nil
 }
 
 // Get returns the path to an openshift-baremetal-install binary extracted from
 // the referenced release image. Tries the mirror release image first if it's set. It is safe for concurrent use. A cache of
 // binaries is maintained to reduce re-downloading of the same release.
 func (i *Installers) Get(ctx context.Context, releaseID, releaseIDMirror, pullSecret string, ocRelease oc.Release, ocpVersion string, clusterID strfmt.UUID) (*Release, error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, errors.Errorf("context cancelled or timed out while fetching release %s", releaseID)
+		default:
+			release, err := i.get(releaseID, releaseIDMirror, pullSecret, ocRelease, ocpVersion, clusterID)
+			if err == nil {
+				return release, nil
+			}
+			_, isCapacityError := err.(*errorInsufficientCacheCapacity)
+			if !isCapacityError {
+				return nil, errors.Wrapf(err, "failed to get installer path for release %s", releaseID)
+			}
+			i.log.WithError(err).Errorf("insufficient installer cache capacity for release %s", releaseID)
+			time.Sleep(i.config.ReleaseFetchRetryInterval)
+		}
+	}
+}
+
+func (i *Installers) get(releaseID, releaseIDMirror, pullSecret string, ocRelease oc.Release, ocpVersion string, clusterID strfmt.UUID) (*Release, error) {
 	i.Lock()
 	defer i.Unlock()
 
@@ -106,43 +154,108 @@ func (i *Installers) Get(ctx context.Context, releaseID, releaseIDMirror, pullSe
 		startTime:     time.Now(),
 	}
 
-	var workdir, binary, path string
-	var err error
-
-	workdir, binary, path, err = ocRelease.GetReleaseBinaryPath(releaseID, i.cacheDir, ocpVersion)
+	workdir, binary, path, err := ocRelease.GetReleaseBinaryPath(releaseID, i.config.CacheDir, ocpVersion)
 	if err != nil {
 		return nil, err
 	}
 	if _, err = os.Stat(path); os.IsNotExist(err) {
+		i.log.Infof("release %s - not found in cache - attempting extraction", releaseID)
+		// Cache eviction and space checks
+		evictionAlreadyPerformed := false
+		for {
+			if i.config.MaxCapacity == 0 {
+				i.log.Info("cache eviction is disabled -- moving directly to extraction")
+				break
+			}
+			i.log.Infof("checking for space to extract release %s", releaseID)
+			// Determine actual space usage, accounting for hardlinks.
+			var usedBytes uint64
+			usedBytes, _, err = i.diskStatsHelper.GetDiskUsage(i.config.CacheDir)
+			if err != nil {
+				if os.IsNotExist(err) {
+					// Installer cache directory will not exist prior to first extraction
+					i.log.WithError(err).Warnf("skipping capacity check as first extraction will trigger creation of directory")
+					break
+				}
+				return nil, errors.Wrapf(err, "could not determine disk usage information for cache dir %s", i.config.CacheDir)
+			}
+			shouldEvict, isBlocked := i.checkEvictionStatus(int64(usedBytes))
+			// If we have already been around once, we don't want to 'double' evict
+			if shouldEvict && !evictionAlreadyPerformed {
+				i.evict()
+			}
+			if !isBlocked {
+				break
+			}
+			if evictionAlreadyPerformed {
+				// We still don't have enough capacity after eviction, so we need to exit and retry
+				return nil, &errorInsufficientCacheCapacity{
+					Message: fmt.Sprintf("insufficient capacity in %s to store release", i.config.CacheDir),
+				}
+			}
+			evictionAlreadyPerformed = true
+		}
+		i.log.Infof("space available for release %s -- starting extraction", releaseID)
 		extractStartTime := time.Now()
-		//evict older files if necessary
-		i.evict()
-
-		//extract the binary
-		_, err = ocRelease.Extract(i.log, releaseID, releaseIDMirror, i.cacheDir, pullSecret, ocpVersion)
+		_, err = ocRelease.Extract(i.log, releaseID, releaseIDMirror, i.config.CacheDir, pullSecret, ocpVersion)
 		if err != nil {
 			return nil, err
 		}
 		release.extractDuration = time.Since(extractStartTime).Seconds()
+		i.log.Infof("finished extraction of %s", releaseID)
 	} else {
+		i.log.Infof("fetching release %s from cache", releaseID)
 		release.cached = true
-		//update the file mtime to signal it was recently used
-		err = os.Chtimes(path, time.Now(), time.Now())
-		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("Failed to update release binary %s", path))
-		}
+
 	}
+
+	// update the file mtime to signal it was recently used
+	// do this, no matter where we sourced the binary (cache or otherwise) as it would appear that the binary
+	// can have a modtime - upon extraction - that is significantly in the past
+	// this can lead to premature link pruning in some scenarios.
+	err = os.Chtimes(path, time.Now(), time.Now())
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to update release binary %s", path))
+	}
+
 	// return a new hard link to the binary file
 	// the caller should delete the hard link when
 	// it finishes working with the file
-	link := filepath.Join(workdir, "ln_"+fmt.Sprint(time.Now().Unix())+
-		"_"+binary)
-	err = os.Link(path, link)
-	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to create hard link to binary %s", path))
+	i.log.Infof("attempting hardlink creation for release %s", releaseID)
+	for {
+		link := filepath.Join(workdir, fmt.Sprintf("ln_%s_%s", uuid.NewString(), binary))
+		err = os.Link(path, link)
+		if err == nil {
+			i.log.Infof("created hardlink %s to release %s at path %s", link, releaseID, path)
+			release.Path = link
+			return release, nil
+		}
+		if !os.IsExist(err) {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to create hard link to binary %s", path))
+		}
 	}
-	release.Path = link
-	return release, nil
+}
+
+func (i *Installers) shouldEvict(totalUsed int64) bool {
+	shouldEvict, _ := i.checkEvictionStatus(totalUsed)
+	return shouldEvict
+}
+
+func (i *Installers) checkEvictionStatus(totalUsed int64) (shouldEvict bool, isBlocked bool) {
+	if i.config.MaxCapacity == 0 {
+		// The cache eviction is completely disabled.
+		return false, false
+	}
+	if i.config.MaxCapacity-totalUsed < i.config.MaxReleaseSize {
+		// We are badly blocked, not enough room for even one release more.
+		return true, true
+	}
+	if (float64(totalUsed) / float64(i.config.MaxCapacity)) >= i.config.InstallerCacheEvictionThreshold {
+		// We need to evict some items in order to keep cache efficient and within capacity.
+		return true, false
+	}
+	// We have enough space.
+	return false, false
 }
 
 // Walk through the cacheDir and list the files recursively.
@@ -151,11 +264,6 @@ func (i *Installers) Get(ctx context.Context, releaseID, releaseIDMirror, pullSe
 //
 // Locking must be done outside evict() to avoid contentions.
 func (i *Installers) evict() {
-	//if cache limit is undefined skip eviction
-	if i.storageCapacity == 0 {
-		return
-	}
-
 	// store the file paths
 	files := NewPriorityQueue(&fileInfo{})
 	links := make([]*fileInfo, 0)
@@ -183,33 +291,34 @@ func (i *Installers) evict() {
 		return nil
 	}
 
-	err := filepath.Walk(i.cacheDir, visit)
+	err := filepath.Walk(i.config.CacheDir, visit)
 	if err != nil {
 		if !os.IsNotExist(err) { //ignore first invocation where the cacheDir does not exist
-			i.log.WithError(err).Errorf("release binary eviction failed to inspect directory %s", i.cacheDir)
+			i.log.WithError(err).Errorf("release binary eviction failed to inspect directory %s", i.config.CacheDir)
 		}
 		return
 	}
 
-	//prune the hard links just in case the deletion of resources
-	//in ignition.go did not succeeded as expected
-	for idx := 0; idx < len(links); idx++ {
-		finfo := links[idx]
-		//Allow a grace period of 5 minutes from the link creation time
-		//to ensure the link is not being used.
-		grace := time.Now().Add(DeleteGracePeriod).Unix()
-		if finfo.info.ModTime().Unix() < grace {
-			os.Remove(finfo.path)
-		}
-	}
+	// TODO: We might want to consider if we need to do this longer term, in theory every hardlink should be automatically freed.
+	// For now, moved to a function so that this can be tested in unit tests.
+	i.pruneExpiredHardLinks(links, linkPruningGracePeriod)
 
-	//delete the oldest file if necessary
-	for totalSize >= int64(float64(i.storageCapacity)*CacheLimitThreshold) {
-		finfo, _ := files.Pop()
-		totalSize -= finfo.info.Size()
-		//remove the file
-		if err := i.evictFile(finfo.path); err != nil {
-			i.log.WithError(err).Errorf("failed to evict file %s", finfo.path)
+	// delete the oldest file if necessary
+	// prefer files without hardlinks first because
+	// 1: files without hardlinks are likely to be least recently used anyway
+	// 2: files without hardlinks will immediately free up storage
+	queues := i.splitQueueOnHardLinks(files)
+	for _, q := range queues {
+		for i.shouldEvict(totalSize) {
+			if q.Len() == 0 { // If we have cleaned out this queue then break the loop
+				break
+			}
+			finfo, _ := q.Pop()
+			totalSize -= finfo.info.Size()
+			//remove the file
+			if err := i.evictFile(finfo.path); err != nil {
+				i.log.WithError(err).Errorf("failed to evict file %s", finfo.path)
+			}
 		}
 	}
 }
@@ -231,4 +340,48 @@ func (i *Installers) evictFile(filePath string) error {
 		return os.Remove(parentDir)
 	}
 	return nil
+}
+
+// pruneExpiredHardLinks removes any hardlinks that have been around for too long
+// the grace period is used to determine which links should be removed.
+func (i *Installers) pruneExpiredHardLinks(links []*fileInfo, gracePeriod time.Duration) {
+	for idx := 0; idx < len(links); idx++ {
+		finfo := links[idx]
+		graceTime := time.Now().Add(-1 * gracePeriod)
+		grace := graceTime.Unix()
+		if finfo.info.ModTime().Unix() < grace {
+			i.log.Infof("Found expired hardlink -- pruning %s", finfo.info.Name())
+			i.log.Infof("Mod time %s", finfo.info.ModTime().Format("2006-01-02 15:04:05"))
+			i.log.Infof("Grace time %s", graceTime.Format("2006-01-02 15:04:05"))
+			os.Remove(finfo.path)
+		}
+	}
+}
+
+// splitQueueOnHardLinks Splits the provided *PriorityQueue[*fileInfo] into two queues
+// withoutHardLinks will present a queue of files that do not have associated hardlinks
+// withHardLinks will present a queue of files that do have associated hardlinks
+// This is to allow us to prioritize deletion, favouring files without hardlinks first as these will have an immediate impact on storage.
+func (i *Installers) splitQueueOnHardLinks(in *PriorityQueue[*fileInfo]) []*PriorityQueue[*fileInfo] {
+	withoutHardLinks := &PriorityQueue[*fileInfo]{}
+	withHardLinks := &PriorityQueue[*fileInfo]{}
+	for {
+		if in.Len() == 0 {
+			break
+		}
+		fi, _ := in.Pop()
+		stat, ok := fi.info.Sys().(*syscall.Stat_t)
+		if !ok {
+			// If we do encounter an error while performing stat - let's fall back to the original queue
+			// it's not optimal, but we don't break anything.
+			i.log.Errorf("encountered error while trying to split queues - using original queue")
+			return []*PriorityQueue[*fileInfo]{in}
+		}
+		if stat.Nlink == 0 {
+			withoutHardLinks.Add(fi)
+			continue
+		}
+		withHardLinks.Add(fi)
+	}
+	return []*PriorityQueue[*fileInfo]{withoutHardLinks, withHardLinks}
 }

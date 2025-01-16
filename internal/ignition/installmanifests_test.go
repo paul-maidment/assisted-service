@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	config_32 "github.com/coreos/ignition/v2/config/v3_2"
 	config_32_types "github.com/coreos/ignition/v2/config/v3_2/types"
@@ -25,7 +26,9 @@ import (
 	"github.com/openshift/assisted-service/internal/constants"
 	eventsapi "github.com/openshift/assisted-service/internal/events/api"
 	"github.com/openshift/assisted-service/internal/host/hostutil"
+	"github.com/openshift/assisted-service/internal/installercache"
 	manifestsapi "github.com/openshift/assisted-service/internal/manifests/api"
+	"github.com/openshift/assisted-service/internal/metrics"
 	"github.com/openshift/assisted-service/internal/network"
 	"github.com/openshift/assisted-service/models"
 	"github.com/openshift/assisted-service/pkg/s3wrapper"
@@ -78,29 +81,38 @@ var _ = Describe("Bootstrap Ignition Update", func() {
 	  }`
 
 	var (
-		err           error
-		examplePath   string
-		db            *gorm.DB
-		dbName        string
-		bmh           *bmh_v1alpha1.BareMetalHost
-		config        *config_32_types.Config
-		mockS3Client  *s3wrapper.MockAPI
-		workDir       string
-		cluster       *common.Cluster
-		ctrl          *gomock.Controller
-		manifestsAPI  *manifestsapi.MockManifestsAPI
-		eventsHandler eventsapi.Handler
+		err            error
+		examplePath    string
+		db             *gorm.DB
+		dbName         string
+		bmh            *bmh_v1alpha1.BareMetalHost
+		config         *config_32_types.Config
+		mockS3Client   *s3wrapper.MockAPI
+		workDir        string
+		cluster        *common.Cluster
+		ctrl           *gomock.Controller
+		manifestsAPI   *manifestsapi.MockManifestsAPI
+		eventsHandler  *eventsapi.MockHandler
+		installerCache *installercache.Installers
 	)
 
 	BeforeEach(func() {
 		// setup temp workdir
 		workDir, err = os.MkdirTemp("", "bootstrap-ignition-update-test-")
 		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 		examplePath = filepath.Join(workDir, "example1.ign")
 		var err1 error
 		err1 = os.WriteFile(examplePath, []byte(bootstrap1), 0600)
 		Expect(err1).NotTo(HaveOccurred())
 		ctrl = gomock.NewController(GinkgoT())
+		installerCacheConfig := installercache.InstallerCacheConfig{
+			CacheDir:                        filepath.Join(workDir, "some-dir", "installercache"),
+			MaxCapacity:                     int64(5),
+			MaxReleaseSize:                  int64(5),
+			InstallerCacheEvictionThreshold: 0.8,
+		}
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
 		mockS3Client = s3wrapper.NewMockAPI(ctrl)
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
@@ -113,7 +125,7 @@ var _ = Describe("Bootstrap Ignition Update", func() {
 			},
 		}
 		db, dbName = common.PrepareTestDB()
-		g := NewGenerator(workDir, "", cluster, "", "", "", "", mockS3Client, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+		g := NewGenerator(workDir, cluster, "", "", "", "", mockS3Client, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 		Expect(g.updateBootstrap(context.Background(), examplePath)).To(Succeed())
 
@@ -241,16 +253,17 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 -----END CERTIFICATE-----`
 
 	var (
-		masterPath    string
-		workerPath    string
-		caCertPath    string
-		dbName        string
-		db            *gorm.DB
-		cluster       *common.Cluster
-		workDir       string
-		ctrl          *gomock.Controller
-		manifestsAPI  *manifestsapi.MockManifestsAPI
-		eventsHandler eventsapi.Handler
+		masterPath     string
+		workerPath     string
+		caCertPath     string
+		dbName         string
+		db             *gorm.DB
+		cluster        *common.Cluster
+		workDir        string
+		ctrl           *gomock.Controller
+		manifestsAPI   *manifestsapi.MockManifestsAPI
+		eventsHandler  eventsapi.Handler
+		installerCache *installercache.Installers
 	)
 
 	BeforeEach(func() {
@@ -274,6 +287,14 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 		ctrl = gomock.NewController(GinkgoT())
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		installerCacheConfig := installercache.InstallerCacheConfig{
+			CacheDir:                        filepath.Join(workDir, "some-dir", "installercache"),
+			MaxCapacity:                     int64(5),
+			MaxReleaseSize:                  int64(5),
+			InstallerCacheEvictionThreshold: 0.8,
+		}
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -283,7 +304,7 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 
 	Describe("update ignitions", func() {
 		It("with ca cert file", func() {
-			g := NewGenerator(workDir, "", cluster, "", "", caCertPath, "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", caCertPath, "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 			err := g.updateIgnitions()
 			Expect(err).NotTo(HaveOccurred())
@@ -305,7 +326,7 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 			Expect(file.Path).To(Equal(common.HostCACertPath))
 		})
 		It("with no ca cert file", func() {
-			g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 			err := g.updateIgnitions()
 			Expect(err).NotTo(HaveOccurred())
@@ -324,7 +345,7 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 		})
 		Context("DHCP generation", func() {
 			It("Definitions only", func() {
-				g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+				g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 				g.encodedDhcpFileContents = "data:,abc"
 				err := g.updateIgnitions()
@@ -342,7 +363,7 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 			})
 		})
 		It("Definitions+leases", func() {
-			g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 			g.encodedDhcpFileContents = "data:,abc"
 			cluster.ApiVipLease = "api"
@@ -429,14 +450,15 @@ var _ = Describe("createHostIgnitions", func() {
 		}`
 
 	var (
-		dbName        string
-		db            *gorm.DB
-		mockS3Client  *s3wrapper.MockAPI
-		cluster       *common.Cluster
-		ctrl          *gomock.Controller
-		workDir       string
-		manifestsAPI  *manifestsapi.MockManifestsAPI
-		eventsHandler eventsapi.Handler
+		dbName         string
+		db             *gorm.DB
+		mockS3Client   *s3wrapper.MockAPI
+		cluster        *common.Cluster
+		ctrl           *gomock.Controller
+		workDir        string
+		manifestsAPI   *manifestsapi.MockManifestsAPI
+		eventsHandler  eventsapi.Handler
+		installerCache *installercache.Installers
 	)
 
 	BeforeEach(func() {
@@ -457,6 +479,14 @@ var _ = Describe("createHostIgnitions", func() {
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
 		cluster = testCluster()
+		installerCacheConfig := installercache.InstallerCacheConfig{
+			CacheDir:                        filepath.Join(workDir, "some-dir", "installercache"),
+			MaxCapacity:                     int64(5),
+			MaxReleaseSize:                  int64(5),
+			InstallerCacheEvictionThreshold: 0.8,
+		}
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -492,7 +522,7 @@ var _ = Describe("createHostIgnitions", func() {
 				host.ID = &id
 			}
 
-			g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 			err := g.createHostIgnitions()
 			Expect(err).NotTo(HaveOccurred())
@@ -546,7 +576,7 @@ var _ = Describe("createHostIgnitions", func() {
 				host.ID = &id
 			}
 
-			g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 			err := g.createHostIgnitions()
 			Expect(err).NotTo(HaveOccurred())
@@ -590,7 +620,7 @@ var _ = Describe("createHostIgnitions", func() {
 				host.ID = &id
 			}
 
-			g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 			err := g.createHostIgnitions()
 			Expect(err).NotTo(HaveOccurred())
@@ -638,7 +668,7 @@ var _ = Describe("createHostIgnitions", func() {
 			host.ID = &id
 		}
 
-		g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+		g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 		g.nodeIpAllocations = make(map[strfmt.UUID]*network.NodeIpAllocation)
 		for i, h := range cluster.Hosts {
 			g.nodeIpAllocations[*h.ID] = &network.NodeIpAllocation{
@@ -694,7 +724,7 @@ var _ = Describe("createHostIgnitions", func() {
 			host.ID = &id
 		}
 
-		g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+		g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 		g.nodeIpAllocations = make(map[strfmt.UUID]*network.NodeIpAllocation)
 
 		for i, h := range cluster.Hosts {
@@ -754,7 +784,7 @@ var _ = Describe("createHostIgnitions", func() {
 			host.ID = &id
 		}
 
-		g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+		g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 		err := g.createHostIgnitions()
 		Expect(err).NotTo(HaveOccurred())
 
@@ -787,7 +817,7 @@ var _ = Describe("createHostIgnitions", func() {
 			IgnitionConfigOverrides: `{"ignition": {"version": "3.2.0"}, "storage": {"files": [{"path": "/tmp/example", "contents": {"source": "data:text/plain;base64,aGVscGltdHJhcHBlZGluYXN3YWdnZXJzcGVj"}}]}}`,
 		}}
 
-		g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+		g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 		err := g.createHostIgnitions()
 		Expect(err).NotTo(HaveOccurred())
@@ -858,7 +888,7 @@ spec:
 				MachineConfigPoolName: "infra",
 			}}
 
-			g := NewGenerator(workDir, "", cluster, "", "", "", "", mockS3Client, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", "", "", mockS3Client, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 			mockS3Client.EXPECT().ListObjectsByPrefixWithMetadata(gomock.Any(), filepath.Join(clusterID.String(), constants.ManifestFolder, models.ManifestFolderOpenshift)).Return([]s3wrapper.ObjectInfo{{Path: "mcp.yaml"}}, nil).Times(1)
 			mockS3Client.EXPECT().ListObjectsByPrefixWithMetadata(gomock.Any(), filepath.Join(clusterID.String(), constants.ManifestFolder, models.ManifestFolderManifests)).Times(1)
 			mockS3Client.EXPECT().Download(gomock.Any(), gomock.Any()).Return(io.NopCloser(strings.NewReader(mcp)), int64(0), nil)
@@ -884,7 +914,7 @@ spec:
 				MachineConfigPoolName: "infra",
 			}}
 
-			g := NewGenerator(workDir, "", cluster, "", "", "", "", mockS3Client, logrus.New(), nil, "", "", 5, manifestsAPI, eventsHandler).(*installerGenerator)
+			g := NewGenerator(workDir, cluster, "", "", "", "", mockS3Client, logrus.New(), nil, "", "", manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 			mockS3Client.EXPECT().ListObjectsByPrefixWithMetadata(gomock.Any(), filepath.Join(clusterID.String(), constants.ManifestFolder, models.ManifestFolderOpenshift)).Return([]s3wrapper.ObjectInfo{{Path: "mcp.yaml"}}, nil).Times(1)
 			mockS3Client.EXPECT().ListObjectsByPrefixWithMetadata(gomock.Any(), filepath.Join(clusterID.String(), constants.ManifestFolder, models.ManifestFolderManifests)).Times(1)
 			mockS3Client.EXPECT().Download(gomock.Any(), gomock.Any()).Return(io.NopCloser(strings.NewReader(mc)), int64(0), nil)
@@ -1709,10 +1739,11 @@ var _ = Describe("Set kubelet node ip", func() {
 
 var _ = Describe("Bare metal host generation", func() {
 	var (
-		workDir       string
-		ctrl          *gomock.Controller
-		manifestsAPI  *manifestsapi.MockManifestsAPI
-		eventsHandler eventsapi.Handler
+		workDir        string
+		ctrl           *gomock.Controller
+		manifestsAPI   *manifestsapi.MockManifestsAPI
+		eventsHandler  eventsapi.Handler
+		installerCache *installercache.Installers
 	)
 
 	BeforeEach(func() {
@@ -1722,6 +1753,15 @@ var _ = Describe("Bare metal host generation", func() {
 		ctrl = gomock.NewController(GinkgoT())
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		installerCacheConfig := installercache.InstallerCacheConfig{
+			CacheDir:                        filepath.Join(workDir, "some-dir", "installercache"),
+			MaxCapacity:                     int64(5),
+			MaxReleaseSize:                  int64(5),
+			ReleaseFetchRetryInterval:       1 * time.Millisecond,
+			InstallerCacheEvictionThreshold: 0.8,
+		}
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -1734,7 +1774,6 @@ var _ = Describe("Bare metal host generation", func() {
 			// Create the generator:
 			generator := NewGenerator(
 				workDir,
-				"",
 				testCluster(),
 				"",
 				"",
@@ -1745,9 +1784,9 @@ var _ = Describe("Bare metal host generation", func() {
 				nil,
 				"",
 				"",
-				5,
 				manifestsAPI,
 				eventsHandler,
+				installerCache,
 			).(*installerGenerator)
 
 			// The default host inventory used by these tests has two NICs, each with
@@ -1807,14 +1846,15 @@ var _ = Describe("Bare metal host generation", func() {
 
 var _ = Describe("Import Cluster TLS Certs for ephemeral installer", func() {
 	var (
-		certDir       string
-		dbName        string
-		db            *gorm.DB
-		cluster       *common.Cluster
-		workDir       string
-		ctrl          *gomock.Controller
-		manifestsAPI  *manifestsapi.MockManifestsAPI
-		eventsHandler eventsapi.Handler
+		certDir        string
+		dbName         string
+		db             *gorm.DB
+		cluster        *common.Cluster
+		workDir        string
+		ctrl           *gomock.Controller
+		manifestsAPI   *manifestsapi.MockManifestsAPI
+		eventsHandler  eventsapi.Handler
+		installerCache *installercache.Installers
 	)
 
 	certFiles := []string{"test-cert.crt", "test-cert.key"}
@@ -1845,6 +1885,15 @@ var _ = Describe("Import Cluster TLS Certs for ephemeral installer", func() {
 		ctrl = gomock.NewController(GinkgoT())
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		installerCacheConfig := installercache.InstallerCacheConfig{
+			CacheDir:                        filepath.Join(workDir, "some-dir", "installercache"),
+			MaxCapacity:                     int64(5),
+			MaxReleaseSize:                  int64(5),
+			ReleaseFetchRetryInterval:       1 * time.Millisecond,
+			InstallerCacheEvictionThreshold: 0.8,
+		}
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -1853,7 +1902,7 @@ var _ = Describe("Import Cluster TLS Certs for ephemeral installer", func() {
 	})
 
 	It("copies the tls cert files", func() {
-		g := NewGenerator(workDir, "", cluster, "", "", "", "", nil, logrus.New(), nil, "", certDir, 5, manifestsAPI, eventsHandler).(*installerGenerator)
+		g := NewGenerator(workDir, cluster, "", "", "", "", nil, logrus.New(), nil, "", certDir, manifestsAPI, eventsHandler, installerCache).(*installerGenerator)
 
 		err := g.importClusterTLSCerts(context.Background())
 		Expect(err).NotTo(HaveOccurred())

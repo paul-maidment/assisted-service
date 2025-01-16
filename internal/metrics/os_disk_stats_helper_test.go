@@ -7,13 +7,14 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("OS disk stats helper", func() {
 
 	var (
 		tempDir         string
-		diskStatsHelper *OSDiskStatsHelper = NewOSDiskStatsHelper()
+		diskStatsHelper *OSDiskStatsHelper = NewOSDiskStatsHelper(logrus.New())
 	)
 
 	BeforeEach(func() {
