@@ -35,6 +35,7 @@ type Installers struct {
 	eventsHandler   eventsapi.Handler
 	diskStatsHelper metrics.DiskStatsHelper
 	config          InstallerCacheConfig
+	metricsAPI      metrics.API
 }
 
 type InstallerCacheConfig struct {
@@ -98,11 +99,12 @@ func (rl *Release) Cleanup(ctx context.Context) {
 	)
 	if err := os.Remove(rl.Path); err != nil {
 		logrus.New().WithError(err).Errorf("Failed to delete release link %s", rl.Path)
+		return
 	}
 }
 
 // New constructs an installer cache with a given storage capacity
-func New(config InstallerCacheConfig, eventsHandler eventsapi.Handler, diskStatsHelper metrics.DiskStatsHelper, log logrus.FieldLogger) (*Installers, error) {
+func New(config InstallerCacheConfig, eventsHandler eventsapi.Handler, metricsAPI metrics.API, diskStatsHelper metrics.DiskStatsHelper, log logrus.FieldLogger) (*Installers, error) {
 	if config.InstallerCacheEvictionThreshold == 0 {
 		return nil, errors.New("config.InstallerCacheEvictionThreshold must not be zero")
 	}
@@ -117,6 +119,7 @@ func New(config InstallerCacheConfig, eventsHandler eventsapi.Handler, diskStats
 		eventsHandler:   eventsHandler,
 		diskStatsHelper: diskStatsHelper,
 		config:          config,
+		metricsAPI:      metricsAPI,
 	}, nil
 }
 
@@ -127,14 +130,17 @@ func (i *Installers) Get(ctx context.Context, releaseID, releaseIDMirror, pullSe
 	for {
 		select {
 		case <-ctx.Done():
+			i.metricsAPI.InstallerCacheGetReleaseTimeout()
 			return nil, errors.Errorf("context cancelled or timed out while fetching release %s", releaseID)
 		default:
 			release, err := i.get(releaseID, releaseIDMirror, pullSecret, ocRelease, ocpVersion, clusterID)
 			if err == nil {
+				i.metricsAPI.InstallerCacheGetReleaseOK()
 				return release, nil
 			}
 			_, isCapacityError := err.(*errorInsufficientCacheCapacity)
 			if !isCapacityError {
+				i.metricsAPI.InstallerCacheGetReleaseError()
 				return nil, errors.Wrapf(err, "failed to get installer path for release %s", releaseID)
 			}
 			i.log.WithError(err).Errorf("insufficient installer cache capacity for release %s", releaseID)
@@ -182,13 +188,13 @@ func (i *Installers) get(releaseID, releaseIDMirror, pullSecret string, ocReleas
 			shouldEvict, isBlocked := i.checkEvictionStatus(int64(usedBytes))
 			// If we have already been around once, we don't want to 'double' evict
 			if shouldEvict && !evictionAlreadyPerformed {
+				i.metricsAPI.InstallerCacheTryEviction()
 				i.evict()
 			}
 			if !isBlocked {
 				break
 			}
 			if evictionAlreadyPerformed {
-				// We still don't have enough capacity after eviction, so we need to exit and retry
 				return nil, &errorInsufficientCacheCapacity{
 					Message: fmt.Sprintf("insufficient capacity in %s to store release", i.config.CacheDir),
 				}
@@ -201,12 +207,13 @@ func (i *Installers) get(releaseID, releaseIDMirror, pullSecret string, ocReleas
 		if err != nil {
 			return nil, err
 		}
+		i.metricsAPI.InstallerCacheReleaseExtracted(releaseID)
 		release.extractDuration = time.Since(extractStartTime).Seconds()
 		i.log.Infof("finished extraction of %s", releaseID)
 	} else {
 		i.log.Infof("fetching release %s from cache", releaseID)
+		i.metricsAPI.InstallerCacheReleaseCached(releaseID)
 		release.cached = true
-
 	}
 
 	// update the file mtime to signal it was recently used
@@ -315,7 +322,6 @@ func (i *Installers) evict() {
 			}
 			finfo, _ := q.Pop()
 			totalSize -= finfo.info.Size()
-			//remove the file
 			if err := i.evictFile(finfo.path); err != nil {
 				i.log.WithError(err).Errorf("failed to evict file %s", finfo.path)
 			}
@@ -324,11 +330,13 @@ func (i *Installers) evict() {
 }
 
 func (i *Installers) evictFile(filePath string) error {
+	// TODO: Count - Release eviction (label with release ID)
 	i.log.Infof("evicting binary file %s due to storage pressure", filePath)
 	err := os.Remove(filePath)
 	if err != nil {
 		return err
 	}
+	i.metricsAPI.InstallerCacheReleaseEvicted()
 	// if the parent directory was left empty,
 	// remove it to avoid dangling directories
 	parentDir := path.Dir(filePath)
@@ -350,6 +358,7 @@ func (i *Installers) pruneExpiredHardLinks(links []*fileInfo, gracePeriod time.D
 		graceTime := time.Now().Add(-1 * gracePeriod)
 		grace := graceTime.Unix()
 		if finfo.info.ModTime().Unix() < grace {
+			i.metricsAPI.InstallerCachePrunedHardLink()
 			i.log.Infof("Found expired hardlink -- pruning %s", finfo.info.Name())
 			i.log.Infof("Mod time %s", finfo.info.ModTime().Format("2006-01-02 15:04:05"))
 			i.log.Infof("Grace time %s", graceTime.Format("2006-01-02 15:04:05"))
