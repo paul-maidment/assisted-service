@@ -511,7 +511,7 @@ func main() {
 		ReleaseFetchRetryInterval:       time.Duration(Options.ReleaseFetchRetryIntervalSeconds) * time.Second,
 		InstallerCacheEvictionThreshold: float64(Options.InstallerCacheEvictionThresholdPercent) / 100,
 	}
-	installerCache, err := installercache.New(installerCacheConfig, eventsHandler, diskStatsHelper, log)
+	installerCache, err := installercache.New(installerCacheConfig, eventsHandler, metricsManager, diskStatsHelper, log)
 	failOnError(err, "failed to instantiate installercache")
 
 	generator := generator.New(installGeneratorDirectoryConfig, log, objectHandler, Options.GeneratorConfig, providerRegistry, manifestsApi, eventsHandler, installerCache)

@@ -39,6 +39,14 @@ const (
 	counterFilesystemUsagePercentage              = "assisted_installer_filesystem_usage_percentage"
 	counterMonitoredHosts                         = "assisted_installer_monitored_hosts"
 	counterMonitoredClusters                      = "assisted_installer_monitored_clusters"
+	counterInstallerCachePrunedHardlink           = "assisted_installer_cache_pruned_hardlink"
+	counterInstallerCacheGetReleaseOK             = "assisted_installer_cache_get_release_ok"
+	counterInstallerCacheGetReleaseTimeout        = "assisted_installer_cache_get_release_timeout"
+	counterInstallerCacheGetReleaseError          = "assisted_installer_cache_get_release_error"
+	counterInstallerCacheReleaseCached            = "assisted_installer_cache_get_release_cached"
+	counterInstallerCacheReleaseExtracted         = "assisted_installer_cache_get_release_extracted"
+	counterInstallerCacheTryEviction              = "assisted_installer_cache_try_eviction"
+	counterInstallerCacheReleaseEvicted           = "assisted_installer_cache_release_evicted"
 )
 
 const (
@@ -61,6 +69,14 @@ const (
 	counterDescriptionFilesystemUsagePercentage              = "The percentage of the filesystem usage by the service"
 	counterDescriptionMonitoredHosts                         = "Number of hosts monitored by host monitor"
 	counterDescriptionMonitoredClusters                      = "Number of clusters monitored by cluster monitor"
+	counterDescriptionInstallerCachePrunedHardlink           = "Counts the number of times the installercache pruned a hardlink for being too old"
+	counterDescriptionInstallerCacheGetReleaseOK             = "Counts the number of times that a release was fetched succesfully"
+	counterDescriptionInstallerCacheGetReleaseTimeout        = "Counts the number of times that a release timed out or had the context cancelled"
+	counterDescriptionInstallerCacheGetReleaseError          = "Counts the number of times that a release fetch resulted in error"
+	counterDescriptionInstallerCacheReleaseCached            = "Counts the number of times that a release was found in the cache"
+	counterDescriptionInstallerCacheReleaseExtracted         = "Counts the number of times that a release was extracted"
+	counterDescriptionInstallerCacheTryEviction              = "Counts the number of times that the eviction function was called"
+	counterDescriptionInstallerCacheReleaseEvicted           = "Counts the number of times that a release was evicted"
 )
 
 const (
@@ -77,6 +93,10 @@ const (
 	imageLabel                 = "imageName"
 	hosts                      = "hosts"
 	clusters                   = "clusters"
+	release                    = "release"
+	status                     = "status"
+	cachedOrExtracted          = "cachedOrExtrcted"
+	extracted                  = "extracted"
 )
 
 type API interface {
@@ -94,6 +114,14 @@ type API interface {
 	FileSystemUsage(usageInPercentage float64)
 	MonitoredHostsCount(monitoredHosts int64)
 	MonitoredClusterCount(monitoredClusters int64)
+	InstallerCacheReleaseCached(releaseID string)
+	InstallerCacheReleaseExtracted(releaseID string)
+	InstallerCacheReleaseEvicted()
+	InstallerCachePrunedHardLink()
+	InstallerCacheGetReleaseOK()
+	InstallerCacheGetReleaseTimeout()
+	InstallerCacheGetReleaseError()
+	InstallerCacheTryEviction()
 }
 
 type MetricsManager struct {
@@ -119,7 +147,16 @@ type MetricsManager struct {
 	serviceLogicFilesystemUsagePercentage              *prometheus.GaugeVec
 	serviceLogicMonitoredHosts                         *prometheus.GaugeVec
 	serviceLogicMonitoredClusters                      *prometheus.GaugeVec
-	collectors                                         []prometheus.Collector
+	serviceLogicInstallerCachePrunedHardlink           *prometheus.CounterVec
+	serviceLogicInstallerCacheGetReleaseOK             *prometheus.CounterVec
+	serviceLogicInstallerCacheGetReleaseTimeout        *prometheus.CounterVec
+	serviceLogicInstallerCacheGetReleaseError          *prometheus.CounterVec
+	serviceLogicInstallerCacheReleaseCached            *prometheus.CounterVec // release id label
+	serviceLogicInstallerCacheReleaseExtracted         *prometheus.CounterVec // release id label
+	serviceLogicInstallerCacheTryEviction              *prometheus.CounterVec
+	serviceLogicInstallerCacheReleaseEvicted           *prometheus.CounterVec // release id label
+
+	collectors []prometheus.Collector
 }
 
 var _ API = &MetricsManager{}
@@ -288,6 +325,70 @@ func NewMetricsManager(registry prometheus.Registerer, eventsHandler eventsapi.H
 			Name:      counterMonitoredClusters,
 			Help:      counterDescriptionMonitoredClusters,
 		}, []string{hosts}),
+
+		serviceLogicInstallerCacheGetReleaseOK: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCacheGetReleaseOK,
+				Help:      counterDescriptionInstallerCacheGetReleaseOK,
+			}, []string{}),
+
+		serviceLogicInstallerCachePrunedHardlink: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCachePrunedHardlink,
+				Help:      counterDescriptionInstallerCachePrunedHardlink,
+			}, []string{}),
+
+		serviceLogicInstallerCacheGetReleaseTimeout: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCacheGetReleaseTimeout,
+				Help:      counterDescriptionInstallerCacheGetReleaseTimeout,
+			}, []string{}),
+
+		serviceLogicInstallerCacheGetReleaseError: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCacheGetReleaseError,
+				Help:      counterDescriptionInstallerCacheGetReleaseError,
+			}, []string{}),
+
+		serviceLogicInstallerCacheReleaseCached: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCacheReleaseCached,
+				Help:      counterDescriptionInstallerCacheReleaseCached,
+			}, []string{}),
+
+		serviceLogicInstallerCacheReleaseExtracted: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCacheReleaseExtracted,
+				Help:      counterDescriptionInstallerCacheReleaseExtracted,
+			}, []string{}),
+
+		serviceLogicInstallerCacheTryEviction: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCacheTryEviction,
+				Help:      counterDescriptionInstallerCacheTryEviction,
+			}, []string{}),
+
+		serviceLogicInstallerCacheReleaseEvicted: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      counterInstallerCacheReleaseEvicted,
+				Help:      counterDescriptionInstallerCacheReleaseEvicted,
+			}, []string{}),
 	}
 
 	m.collectors = append(m.collectors, newDirectoryUsageCollector(metricsManagerConfig.DirectoryUsageMonitorConfig.Directories, diskStatsHelper, log))
@@ -312,6 +413,14 @@ func NewMetricsManager(registry prometheus.Registerer, eventsHandler eventsapi.H
 		m.serviceLogicFilesystemUsagePercentage,
 		m.serviceLogicMonitoredHosts,
 		m.serviceLogicMonitoredClusters,
+		m.serviceLogicInstallerCachePrunedHardlink,
+		m.serviceLogicInstallerCacheGetReleaseOK,
+		m.serviceLogicInstallerCacheGetReleaseTimeout,
+		m.serviceLogicInstallerCacheGetReleaseError,
+		m.serviceLogicInstallerCacheReleaseCached,
+		m.serviceLogicInstallerCacheReleaseExtracted,
+		m.serviceLogicInstallerCacheTryEviction,
+		m.serviceLogicInstallerCacheReleaseEvicted,
 	)
 
 	for _, collector := range m.collectors {
@@ -485,4 +594,36 @@ func (m *MetricsManager) MonitoredClusterCount(monitoredClusters int64) {
 
 func bytesToGib(bytes int64) int64 {
 	return bytes / int64(units.GiB)
+}
+
+func (m *MetricsManager) InstallerCacheReleaseCached(releaseID string) {
+	m.serviceLogicInstallerCacheReleaseCached.WithLabelValues(releaseID).Inc()
+}
+
+func (m *MetricsManager) InstallerCacheReleaseExtracted(releaseID string) {
+	m.serviceLogicInstallerCacheReleaseExtracted.WithLabelValues(releaseID).Inc()
+}
+
+func (m *MetricsManager) InstallerCacheReleaseEvicted() {
+	m.serviceLogicInstallerCacheReleaseEvicted.WithLabelValues().Inc()
+}
+
+func (m *MetricsManager) InstallerCachePrunedHardLink() {
+	m.serviceLogicInstallerCachePrunedHardlink.WithLabelValues().Inc()
+}
+
+func (m *MetricsManager) InstallerCacheGetReleaseOK() {
+	m.serviceLogicInstallerCacheGetReleaseOK.WithLabelValues().Inc()
+}
+
+func (m *MetricsManager) InstallerCacheGetReleaseTimeout() {
+	m.serviceLogicInstallerCacheGetReleaseTimeout.WithLabelValues().Inc()
+}
+
+func (m *MetricsManager) InstallerCacheGetReleaseError() {
+	m.serviceLogicInstallerCacheGetReleaseError.WithLabelValues().Inc()
+}
+
+func (m *MetricsManager) InstallerCacheTryEviction() {
+	m.serviceLogicInstallerCacheTryEviction.WithLabelValues().Inc()
 }

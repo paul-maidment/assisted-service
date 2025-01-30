@@ -70,6 +70,7 @@ var _ = Describe("installer cache", func() {
 		manager         *Installers
 		cacheDir        string
 		eventsHandler   *eventsapi.MockHandler
+		metricsAPI      *metrics.MockAPI
 		ctx             context.Context
 		diskStatsHelper metrics.DiskStatsHelper
 	)
@@ -80,6 +81,7 @@ var _ = Describe("installer cache", func() {
 		diskStatsHelper = metrics.NewOSDiskStatsHelper(logrus.New())
 		mockRelease = oc.NewMockRelease(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		metricsAPI = metrics.NewMockAPI(ctrl)
 		var err error
 		cacheDir, err = os.MkdirTemp("/tmp", "cacheDir")
 		Expect(err).NotTo(HaveOccurred())
@@ -92,7 +94,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 1,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).NotTo(HaveOccurred())
 		ctx = context.TODO()
 	})
@@ -133,6 +135,8 @@ var _ = Describe("installer cache", func() {
 		fname := filepath.Join(workdir, releaseID)
 		mockReleaseCalls(releaseID, version)
 		expectEventsSent()
+		metricsAPI.EXPECT().InstallerCacheReleaseExtracted(releaseID).Times(1)
+		metricsAPI.EXPECT().InstallerCacheGetReleaseOK().Times(1)
 		l, err := manager.Get(ctx, releaseID, "mirror", "pull-secret", mockRelease, version, clusterID)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(l.releaseID).To(Equal(releaseID))
@@ -166,9 +170,13 @@ var _ = Describe("installer cache", func() {
 		var errMutex sync.Mutex
 		for _, param := range params {
 			mockReleaseCalls(param.releaseID, param.version)
+			metricsAPI.EXPECT().InstallerCacheReleaseCached(param.releaseID).AnyTimes()
+			metricsAPI.EXPECT().InstallerCacheReleaseExtracted(param.releaseID).AnyTimes()
+			metricsAPI.EXPECT().InstallerCacheReleaseExtracted(param.releaseID).AnyTimes()
 			wg.Add(1)
 			go func(param launchParams) {
 				defer wg.Done()
+				metricsAPI.EXPECT().InstallerCacheGetReleaseOK().Times(1)
 				release, err := manager.Get(ctx, param.releaseID, "mirror", "pull-secret", mockRelease, param.version, param.clusterID)
 				if err != nil {
 					errMutex.Lock()
@@ -223,7 +231,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("config.MaxReleaseSize (10 bytes) must not be greater than config.MaxCapacity (5 bytes)"))
 	})
@@ -237,7 +245,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("config.MaxReleaseSize (0 bytes) must not be zero"))
 	})
@@ -251,7 +259,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -264,7 +272,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -277,7 +285,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("config.InstallerCacheEvictionThreshold must not be zero"))
 	})
@@ -291,7 +299,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).ToNot(HaveOccurred())
 		clusterId := strfmt.UUID(uuid.New().String())
 		r1, l1 := testGet("4.8", "4.8.0", clusterId, false)
@@ -320,7 +328,10 @@ var _ = Describe("installer cache", func() {
 		clusterId := strfmt.UUID(uuid.New().String())
 		_, _ = testGet("4.8", "4.8.0", clusterId, false)
 		r2, _ := testGet("4.9", "4.9.0", clusterId, false)
+		metricsAPI.EXPECT().InstallerCacheReleaseCached("4.8").Times(1)
 		r1, _ := testGet("4.8", "4.8.0", clusterId, true)
+		metricsAPI.EXPECT().InstallerCacheTryEviction().Times(1)
+		metricsAPI.EXPECT().InstallerCacheReleaseEvicted().Times(1)
 		r3, _ := testGet("4.10", "4.10.0", clusterId, false)
 
 		By("verify that the oldest file was deleted")
@@ -338,6 +349,8 @@ var _ = Describe("installer cache", func() {
 		clusterId := strfmt.UUID(uuid.New().String())
 		r1, l1 := testGet("4.8", "4.8.0", clusterId, false)
 		r2, l2 := testGet("4.9", "4.9.0", clusterId, false)
+		metricsAPI.EXPECT().InstallerCacheTryEviction().Times(1)
+		metricsAPI.EXPECT().InstallerCacheReleaseEvicted().Times(1)
 		r3, l3 := testGet("4.10", "4.10.0", clusterId, false)
 
 		By("verify that the oldest file was deleted")
@@ -349,6 +362,8 @@ var _ = Describe("installer cache", func() {
 		Expect(os.IsNotExist(err)).To(BeFalse())
 
 		By("verify that the links were purged")
+		metricsAPI.EXPECT().InstallerCacheTryEviction().Times(1)
+		metricsAPI.EXPECT().InstallerCacheReleaseEvicted().Times(1)
 		manager.evict()
 		_, err = os.Stat(l1)
 		Expect(os.IsNotExist(err)).To(BeTrue())
@@ -366,6 +381,8 @@ var _ = Describe("installer cache", func() {
 		clusterID := strfmt.UUID(uuid.New().String())
 		version := "4.10.0"
 		mockReleaseCalls(releaseID, version)
+		metricsAPI.EXPECT().InstallerCacheReleaseExtracted(releaseID).Times(1)
+		metricsAPI.EXPECT().InstallerCacheGetReleaseOK().Times(1)
 		l, err := manager.Get(ctx, releaseID, releaseMirrorID, "pull-secret", mockRelease, version, clusterID)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(l.releaseID).To(Equal(releaseID))
@@ -386,6 +403,8 @@ var _ = Describe("installer cache", func() {
 		version := "4.10.0"
 		clusterID := strfmt.UUID(uuid.NewString())
 		mockReleaseCalls(releaseID, version)
+		metricsAPI.EXPECT().InstallerCacheReleaseExtracted(releaseID).Times(1)
+		metricsAPI.EXPECT().InstallerCacheGetReleaseOK().Times(1)
 		l, err := manager.Get(ctx, releaseID, releaseMirrorID, "pull-secret", mockRelease, version, clusterID)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(l.releaseID).To(Equal(releaseID))
@@ -409,7 +428,7 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).ToNot(HaveOccurred())
 		params := []launchParams{}
 		for i := 0; i < 10; i++ {
@@ -431,7 +450,9 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		metricsAPI.EXPECT().InstallerCacheTryEviction().AnyTimes()
+		metricsAPI.EXPECT().InstallerCacheReleaseEvicted().AnyTimes()
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).ToNot(HaveOccurred())
 		for i := 0; i < 10; i++ {
 			params := []launchParams{}
@@ -457,7 +478,9 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		metricsAPI.EXPECT().InstallerCacheTryEviction().AnyTimes()
+		metricsAPI.EXPECT().InstallerCacheReleaseEvicted().AnyTimes()
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).ToNot(HaveOccurred())
 		for i := 0; i < 85; i++ { // Deliberately generate a number of requests that will be above the percentage
 			params := []launchParams{}
@@ -479,7 +502,9 @@ var _ = Describe("installer cache", func() {
 			ReleaseFetchRetryInterval:       1 * time.Millisecond,
 			InstallerCacheEvictionThreshold: 0.8,
 		}
-		manager, err = New(installerCacheConfig, eventsHandler, diskStatsHelper, logrus.New())
+		metricsAPI.EXPECT().InstallerCacheTryEviction().AnyTimes()
+		metricsAPI.EXPECT().InstallerCacheReleaseEvicted().AnyTimes()
+		manager, err = New(installerCacheConfig, eventsHandler, metricsAPI, diskStatsHelper, logrus.New())
 		Expect(err).ToNot(HaveOccurred())
 		expectEventsSent()
 		// Force a scenario where one of the requests will fail because of a pending release cleanup
@@ -504,6 +529,8 @@ var _ = Describe("installer cache", func() {
 
 		numberOfLinks := 10
 		numberOfExpiredLinks := 5
+
+		metricsAPI.EXPECT().InstallerCachePrunedHardLink().Times(numberOfExpiredLinks)
 
 		directory, err := os.MkdirTemp("", "testPruneExpiredHardLinks")
 		Expect(err).ToNot(HaveOccurred())
